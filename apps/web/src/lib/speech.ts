@@ -8,7 +8,7 @@ export interface SpeechState {
   source?: 'hosted' | 'device';
   sourceLabel?: string;
 }
-export interface SpeakRequest { word: string; wordId: string; accent: Accent; voiceURI?: string; rate?: number; dictionaryVersion?: string }
+export interface SpeakRequest { word: string; wordId: string; accent: Accent; voiceURI?: string; rate?: number; dictionaryVersion?: string; studyWordIndex?: number }
 export interface SpeechOptions {
   onStateChange?: (state: SpeechState) => void;
   onVoicesChange?: (voices: SpeechSynthesisVoice[]) => void;
@@ -81,7 +81,7 @@ export class SpeechController {
       this.setState({ status: 'error', wordId: request.wordId, played: false, error: '当前单词无法朗读，请回到学习页面后重试。', voice: null });
       return;
     }
-    if (this.audioStore && request.accent === 'en-US' && !request.voiceURI && request.dictionaryVersion) {
+    if (this.audioStore && request.accent === 'en-US' && !request.voiceURI && request.dictionaryVersion && (request.studyWordIndex === undefined || request.studyWordIndex >= 0)) {
       this.audioAbort = new AbortController();
       const signal = this.audioAbort.signal;
       this.setState({ status: 'starting', wordId: request.wordId, played: false, error: null, voice: null, source: 'hosted', sourceLabel: '美式合成 · Piper / LJ Speech' });
@@ -116,9 +116,9 @@ export class SpeechController {
       this.generation += 1;
       this.setState({ status: 'error', wordId: request.wordId, played: false, error: message, voice: null, source: 'hosted', sourceLabel: '美式合成 · Piper / LJ Speech' });
     };
-    this.timer = setTimeout(() => fail('发音加载超时，请检查网络后点击重听。'), 15_000);
+    this.timer = setTimeout(() => fail('发音加载超时，请检查网络后点击重听。'), 30_000);
     try {
-      const clip = await this.audioStore!.getClip(request.wordId, request.dictionaryVersion!, signal);
+      const clip = await this.audioStore!.getClip(request.wordId, request.dictionaryVersion!, signal, request.studyWordIndex);
       if (!active()) return;
       const audio = this.options.createAudio?.() ?? new Audio();
       this.audio = audio;

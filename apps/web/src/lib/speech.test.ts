@@ -163,8 +163,9 @@ function hosted(synthesis: Synth | null = null, getClip = vi.fn(async () => clip
 describe('self-hosted playback lifecycle', () => {
   it('uses hosted audio by default even without device voices, and gates on playing only', async () => {
     const f = hosted();
-    f.controller.speak({ ...hostedRequest, rate: 0.65 });
+    f.controller.speak({ ...hostedRequest, rate: 0.65, studyWordIndex: 42 });
     await Promise.resolve(); await Promise.resolve();
+    expect(f.getClip).toHaveBeenCalledWith(hostedRequest.wordId, 'dict-v1', expect.any(AbortSignal), 42);
     expect(f.media).toHaveLength(1);
     expect(f.media[0]!.playbackRate).toBe(0.65);
     expect(f.controller.getState()).toMatchObject({ status: 'starting', played: false, source: 'hosted' });
@@ -181,6 +182,8 @@ describe('self-hosted playback lifecycle', () => {
     expect(synthesis.spoken[0]!.voice).toBe(us);
     f.controller.speak({ ...hostedRequest, accent: 'en-GB' });
     expect(synthesis.spoken[1]!.voice).toBe(gb);
+    f.controller.speak({ ...hostedRequest, studyWordIndex: -1 });
+    expect(synthesis.spoken[2]!.voice).toBe(us);
     expect(f.getClip).not.toHaveBeenCalled();
   });
 
@@ -232,6 +235,8 @@ describe('self-hosted playback lifecycle', () => {
     vi.useFakeTimers(); let resolve: (value: AudioClip) => void = () => {};
     const f = hosted(null, vi.fn(() => new Promise<AudioClip>(done => { resolve = done; })));
     f.controller.speak(hostedRequest); vi.advanceTimersByTime(15_001);
+    expect(f.controller.getState()).toMatchObject({ status: 'starting', played: false });
+    vi.advanceTimersByTime(15_000);
     expect(f.controller.getState()).toMatchObject({ status: 'error', played: false });
     resolve(clip); await Promise.resolve(); await Promise.resolve();
     expect(f.media).toHaveLength(0);

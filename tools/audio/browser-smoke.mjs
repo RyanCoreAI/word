@@ -64,7 +64,9 @@ try {
     await page.waitForFunction(() => ![...document.querySelectorAll('button')].find(button => button.textContent.trim() === '认识').disabled);
     assert.ok(events[0].src.startsWith('blob:'));
     assert.ok(events[0].duration > 0);
-    return { event: events[0], deviceEnglishVoices: report.deviceVoices.filter(voice => /^en[-_](us|gb)$/i.test(voice.lang)).length };
+    assert.equal(audioRequests.some(request => new URL(request).pathname.endsWith('/index.json')), false, 'Cold playback must not download the complete audio index');
+    assert.ok(audioRequests.some(request => /pack-\d+-index-/.test(request)), 'Cold playback uses its small checked pack index');
+    return { event: events[0], requests: [...audioRequests], deviceEnglishVoices: report.deviceVoices.filter(voice => /^en[-_](us|gb)$/i.test(voice.lang)).length };
   });
 
   await check('switching words cancels previous media and plays the next exact clip', async () => {

@@ -141,7 +141,16 @@ def main():
             receipt = {"pack": pack, "entries": group_entries, "phonemes": phonemes}
             verify_pack(folder, receipt, group)
             atomic_json(receipt_file, receipt)
-        packs.append(receipt["pack"])
+        small_index = {"schema": 1, "version": version, "entries": receipt["entries"]}
+        small_bytes = json.dumps(small_index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        small_hash = digest(small_bytes)
+        small_file = f"{pack_id}-index-{small_hash[:16]}.json"
+        assert len(small_bytes) <= 256 * 1024
+        if args.verify:
+            assert (folder / small_file).read_bytes() == small_bytes, "Published pack index differs from completed receipt"
+        else:
+            atomic_bytes(folder / small_file, small_bytes)
+        packs.append({**receipt["pack"], "index": {"file": f"{version}/{small_file}", "bytes": len(small_bytes), "sha256": small_hash, "count": len(group)}})
         entries.update(receipt["entries"])
         print(json.dumps({"completedWords": len(entries), "totalWords": len(words), "completedPacks": len(packs), "generatedThisRun": generated, "elapsedSeconds": round(time.perf_counter() - started, 1)}), flush=True)
     assert len(entries) == len(words)
@@ -164,7 +173,8 @@ def main():
     else:
         atomic_json(output / "manifest.json", manifest)
     summary = {"version": version, "words": len(entries), "packs": len(packs), "audioBytes": sum(pack["bytes"] for pack in packs), "indexBytes": len(index_bytes), "maxPackBytes": max(pack["bytes"] for pack in packs), "elapsedSeconds": time.perf_counter() - started, "generatedThisRun": generated}
-    atomic_json(checkpoint / ("verification.json" if args.verify else "summary.json"), summary)
+    summary_name = "verification.json" if args.verify else "resume-summary.json" if generated == 0 and (checkpoint / "summary.json").exists() else "summary.json"
+    atomic_json(checkpoint / summary_name, summary)
     print(json.dumps(summary), flush=True)
 
 

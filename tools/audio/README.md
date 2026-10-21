@@ -74,17 +74,26 @@ bytes under a formerly published pack URL.
 
 `apps/web/public/audio/manifest.json` identifies the dictionary version, original
 study hash, voice, checked index, and 150 packs. Files are ignored by git and rebuilt
-for deployment. The versioned `index.json` maps each exact word ID to
+for deployment. The versioned full `index.json` maps each exact word ID to
 `{pack, offset, length, sha256, duration}`. Each `.bin` concatenates independently
 encoded 64 kbps mono MP3 clips. The browser verifies a pack, slices only the exact
 word's bytes into an `audio/mpeg` Blob, and starts an ordinary HTMLAudioElement.
-Packs are limited to less than 20 MiB, below Cloudflare's 25 MiB per-asset limit;
-there are about 150 audio assets rather than 19,106 individual files.
+Packs are limited to less than 20 MiB, below Cloudflare's 25 MiB per-asset limit.
+Each pack also has a small checked index (about 20 KiB), listed in
+`manifest.packs[].index` with its file, byte size, hash and entry count. There are
+150 audio packs and 150 small index files, rather than 19,106 individual clips.
+The study screen passes the word's real position in the unfiltered study list;
+the store locates its pack from the declared counts, checks the small index, and
+requires an exact word ID match. Cold playback therefore fetches only the manifest,
+that small index, and that audio pack. It does not first download the 3 MiB full
+index. Missing position metadata or old catalogs retain the full-index fallback.
+The full index remains available for complete build validation.
 
 The frontend `HostedAudioStore` performs no request until playback/download.
-`downloadAllAudio` downloads verified packs sequentially, reports only committed
-cache entries, and supports pause/resume. `getAudioProgress` reports this browser's
-cached pack receipts. A new store checks the current online manifest before using
+`downloadAllAudio` downloads verified small indexes and packs sequentially,
+reports only complete cached pairs, and supports pause/resume. `getAudioProgress`
+loads only the manifest and reports this browser's cached pair receipts.
+A new store checks the current online manifest before using
 an older verified catalog; if offline or that update fails it can reuse the cached
 catalog. Cached clips work offline. Browser storage removal/eviction still removes
 offline audio; it does not affect the separate study backup format.

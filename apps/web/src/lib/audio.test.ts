@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HostedAudioStore, audioManifestSchema, downloadAllAudio, getAudioProgress, parseAudioIndex, type AudioOptions } from './audio';
+import { HostedAudioStore, audioManifestSchema, downloadAllAudio, getAudioProgress, parseAudioIndex, parseAudioPackIndex, type AudioOptions } from './audio';
 import { sha256 } from './dictionary';
 
 async function fixture() {
@@ -22,6 +22,20 @@ async function fixture() {
   }) as unknown as typeof fetch;
   const options: AudioOptions = { baseUrl, dictionaryVersion: 'dict-v1', cacheStorage, fetcher };
   return { cache, clips, packs, index, manifest, files, fetcher, options };
+}
+
+async function shardedFixture() {
+  const f = await fixture();
+  const fullIndex = parseAudioIndex(f.index, f.manifest);
+  for (const pack of f.manifest.packs) {
+    const small = { schema: 1, version: f.manifest.version, entries: Object.fromEntries(Object.entries(fullIndex.entries).filter(([, entry]) => entry.pack === pack.id)) };
+    const bytes = new TextEncoder().encode(JSON.stringify(small));
+    pack.index = { file: `v1/${pack.id}-index.json`, bytes: bytes.length, sha256: await sha256(bytes), count: pack.count };
+    f.files.set(`/audio/${pack.index.file}`, bytes);
+  }
+  f.files.set('/audio/manifest.json', new TextEncoder().encode(JSON.stringify(f.manifest)));
+  f.files.delete('/audio/v1/index.json'); // The fast path must never require this file.
+  return f;
 }
 
 describe('verified self-hosted audio packs', () => {
@@ -87,5 +101,41 @@ describe('verified self-hosted audio packs', () => {
     expect((await new HostedAudioStore(f.options).getClip('way', 'dict-v1', new AbortController().signal)).label).toBe('Updated voice');
     f.files.set('/audio/manifest.json', new TextEncoder().encode('broken update'));
     expect((await new HostedAudioStore(f.options).getClip('way', 'dict-v1', new AbortController().signal)).label).toBe('Updated voice');
+  });
+
+  it('checks progress with only the manifest and cold-plays using only the selected small index', async () => {
+    const f = await shardedFixture();
+    expect(await getAudioProgress(f.options)).toMatchObject({ completed: 0, total: 2 });
+    expect(vi.mocked(f.fetcher).mock.calls.map(call => new URL(String(call[0])).pathname)).toEqual(['/audio/manifest.json']);
+    vi.mocked(f.fetcher).mockClear();
+    const store = new HostedAudioStore(f.options);
+    expect(await (await store.getClip('bank', 'dict-v1', new AbortController().signal, 1)).blob.text()).toBe('second clip');
+    expect(vi.mocked(f.fetcher).mock.calls.map(call => new URL(String(call[0])).pathname)).toEqual(['/audio/manifest.json', '/audio/v1/pack-0001-index.json', '/audio/v1/pack-0001.bin']);
+    const offline = vi.fn(async () => { throw new Error('offline'); }) as unknown as typeof fetch;
+    const restored = new HostedAudioStore({ ...f.options, fetcher: offline, isOnline: () => false });
+    expect(await (await restored.getClip('bank', 'dict-v1', new AbortController().signal, 1)).blob.text()).toBe('second clip');
+    expect(offline).not.toHaveBeenCalled();
+  });
+
+  it('never substitutes another word for a wrong study position and checks small-index integrity first', async () => {
+    const f = await shardedFixture(); const store = new HostedAudioStore(f.options);
+    await expect(store.getClip('way', 'dict-v1', new AbortController().signal, 1)).rejects.toThrow('不在');
+    await expect(store.getClip('way', 'dict-v1', new AbortController().signal, -1)).rejects.toThrow('不在');
+    expect(vi.mocked(f.fetcher).mock.calls.some(call => String(call[0]).includes('.bin'))).toBe(false);
+    f.files.set('/audio/v1/pack-0000-index.json', new TextEncoder().encode('{}'));
+    await expect(store.getClip('way', 'dict-v1', new AbortController().signal, 0)).rejects.toThrow('校验失败');
+    const small = { ...f.index, entries: { way: { ...f.index.entries.way!, pack: 'pack-0001' } } };
+    expect(() => parseAudioPackIndex(small, f.manifest, f.manifest.packs[0]!)).toThrow('不匹配');
+  });
+
+  it('downloads small indexes with packs and cold-plays any indexed word offline without the full index', async () => {
+    const f = await shardedFixture();
+    expect(await downloadAllAudio(f.options)).toMatchObject({ completed: 2, total: 2 });
+    expect(vi.mocked(f.fetcher).mock.calls.some(call => new URL(String(call[0])).pathname === '/audio/v1/index.json')).toBe(false);
+    const offline = vi.fn(async () => { throw new Error('offline'); }) as unknown as typeof fetch;
+    const store = new HostedAudioStore({ ...f.options, fetcher: offline, isOnline: () => false });
+    expect(await (await store.getClip('way', 'dict-v1', new AbortController().signal, 0)).blob.text()).toBe('first clip');
+    expect(await (await store.getClip('bank', 'dict-v1', new AbortController().signal, 1)).blob.text()).toBe('second clip');
+    expect(offline).not.toHaveBeenCalled();
   });
 });

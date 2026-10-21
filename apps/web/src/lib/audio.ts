@@ -7,20 +7,22 @@ const MAX_INDEX_BYTES = 8 * 1024 * 1024;
 const hash = z.string().regex(/^[a-f0-9]{64}$/);
 const path = z.string().max(240).regex(/^[a-zA-Z0-9_./-]+$/).refine(value => !value.startsWith('/') && value.split('/').every(part => part !== '..' && part !== ''), 'Invalid audio path');
 const asset = z.object({ file: path, bytes: z.number().int().positive().max(MAX_PACK_BYTES), sha256: hash });
+const packIndexAsset = asset.extend({ count: z.number().int().positive().max(1000), bytes: z.number().int().positive().max(256 * 1024) }).strict();
 export const audioManifestSchema = z.object({
   schema: z.literal(1), version: z.string().min(1).max(200), dictionaryVersion: z.string().min(1).max(200), studySha256: hash,
   voice: z.object({ id: z.string().min(1).max(100), accent: z.literal('en-US'), label: z.string().min(1).max(100), modelSha256: hash, provenance: path }).strict(),
   index: asset.extend({ count: z.number().int().positive().max(100_000), bytes: z.number().int().positive().max(MAX_INDEX_BYTES) }).strict(),
-  packs: z.array(asset.extend({ id: z.string().regex(/^pack-\d{4}$/), count: z.number().int().positive().max(1000) }).strict()).min(1).max(2000),
+  packs: z.array(asset.extend({ id: z.string().regex(/^pack-\d{4}$/), count: z.number().int().positive().max(1000), index: packIndexAsset.optional() }).strict()).min(1).max(2000),
 }).strict().superRefine((value, ctx) => {
   if (new Set(value.packs.map(pack => pack.id)).size !== value.packs.length || new Set(value.packs.map(pack => pack.file)).size !== value.packs.length || value.packs.reduce((sum, pack) => sum + pack.count, 0) !== value.index.count) ctx.addIssue({ code: 'custom', message: 'Invalid audio pack counts' });
-  if (![value.index.file, value.voice.provenance, ...value.packs.map(pack => pack.file)].every(file => file.startsWith(`${value.version}/`))) ctx.addIssue({ code: 'custom', message: 'Audio assets must be versioned' });
+  if (value.packs.some(pack => pack.index && pack.index.count !== pack.count)) ctx.addIssue({ code: 'custom', message: 'Invalid audio pack index count' });
+  if (![value.index.file, value.voice.provenance, ...value.packs.flatMap(pack => [pack.file, ...(pack.index ? [pack.index.file] : [])])].every(file => file.startsWith(`${value.version}/`))) ctx.addIssue({ code: 'custom', message: 'Audio assets must be versioned' });
 });
 const entrySchema = z.object({ pack: z.string().regex(/^pack-\d{4}$/), offset: z.number().int().nonnegative(), length: z.number().int().positive().max(512 * 1024), sha256: hash, duration: z.number().positive().max(20) }).strict();
 const indexSchema = z.object({ schema: z.literal(1), version: z.string(), entries: z.record(z.string().min(1).max(300), entrySchema) }).strict();
 export type AudioManifest = z.infer<typeof audioManifestSchema>;
 export type AudioIndex = z.infer<typeof indexSchema>;
-interface AudioCatalog { manifest: AudioManifest; index: AudioIndex }
+type AudioPack = AudioManifest['packs'][number];
 export interface AudioDownloadProgress { completed: number; total: number; bytes: number; totalBytes: number }
 export interface AudioOptions {
   baseUrl: string;
@@ -105,7 +107,17 @@ export function parseAudioIndex(input: unknown, manifest: AudioManifest): AudioI
   return index;
 }
 
-async function catalog(options: AudioOptions): Promise<AudioCatalog> {
+export function parseAudioPackIndex(input: unknown, manifest: AudioManifest, pack: AudioPack): AudioIndex {
+  const index = indexSchema.parse(input);
+  const entries = Object.values(index.entries).sort((a, b) => a.offset - b.offset);
+  if (index.version !== manifest.version || entries.length !== pack.count || entries.some(entry => entry.pack !== pack.id)) throw new Error('发音分包索引不匹配。');
+  let offset = 0;
+  for (const entry of entries) { if (entry.offset !== offset) throw new Error('发音索引存在重叠或缺口。'); offset += entry.length; }
+  if (offset !== pack.bytes) throw new Error('发音索引范围异常。');
+  return index;
+}
+
+async function catalog(options: AudioOptions): Promise<AudioManifest> {
   if (!options.dictionaryVersion || options.dictionaryVersion.length > 200) throw new Error('请先加载学习词库，再播放发音。');
   active(options.signal);
   const cache = await cacheFor(options);
@@ -116,17 +128,16 @@ async function catalog(options: AudioOptions): Promise<AudioCatalog> {
     try { cachedManifest = audioManifestSchema.parse(json(await limited(cached, 512 * 1024))); }
     catch { /* Fetch a fresh public manifest without changing any study state. */ }
   }
-  const validate = async (manifest: AudioManifest): Promise<AudioCatalog> => {
+  const validate = (manifest: AudioManifest): AudioManifest => {
     if (manifest.dictionaryVersion !== options.dictionaryVersion) throw new Error('本站发音包与当前词库版本不匹配，请更新页面后重试。');
-    const index = parseAudioIndex(json(await verified(manifest.index, options, cache)), manifest);
     active(options.signal);
-    return { manifest, index };
+    return manifest;
   };
   const online = options.isOnline?.() ?? (typeof navigator === 'undefined' || navigator.onLine !== false);
   if (online || !cachedManifest) {
     try {
       const fresh = await limited(await request(new URL('manifest.json', base(options)), options), 512 * 1024);
-      const result = await validate(audioManifestSchema.parse(json(fresh)));
+      const result = validate(audioManifestSchema.parse(json(fresh)));
       await cache.put(key.href, new Response(new Uint8Array(fresh), { headers: { 'Content-Type': 'application/json' } }));
       return result;
     } catch (error) {
@@ -140,15 +151,30 @@ async function catalog(options: AudioOptions): Promise<AudioCatalog> {
 
 /** Lazy: constructing a store performs no requests. A play/download action loads it. */
 export class HostedAudioStore {
-  private loaded: AudioCatalog | null = null;
+  private loaded: AudioManifest | null = null;
+  private indexes = new Map<string, AudioIndex>();
   constructor(private readonly defaults: Omit<AudioOptions, 'dictionaryVersion' | 'signal' | 'onProgress'>) {}
-  async getClip(wordId: string, dictionaryVersion: string, signal: AbortSignal): Promise<AudioClip> {
+  async getClip(wordId: string, dictionaryVersion: string, signal: AbortSignal, studyWordIndex?: number): Promise<AudioClip> {
     const options = { ...this.defaults, dictionaryVersion, signal };
-    if (!this.loaded || this.loaded.manifest.dictionaryVersion !== dictionaryVersion) this.loaded = await catalog(options);
+    if (!this.loaded || this.loaded.dictionaryVersion !== dictionaryVersion) { this.loaded = await catalog(options); this.indexes.clear(); }
     active(signal);
-    const { manifest, index } = this.loaded;
+    const manifest = this.loaded;
+    let selected: AudioPack | undefined;
+    if (studyWordIndex !== undefined) {
+      if (!Number.isInteger(studyWordIndex) || studyWordIndex < 0 || studyWordIndex >= manifest.index.count) throw new Error('这个词暂不在本站发音学习包中，可选择设备英语声音。');
+      let start = 0;
+      selected = manifest.packs.find(pack => { const match = studyWordIndex >= start && studyWordIndex < start + pack.count; start += pack.count; return match; });
+    }
+    const descriptor = selected?.index ?? manifest.index;
+    let index = this.indexes.get(descriptor.sha256);
+    if (!index) {
+      const input = json(await verified(descriptor, options, await cacheFor(options)));
+      index = selected?.index ? parseAudioPackIndex(input, manifest, selected) : parseAudioIndex(input, manifest);
+      this.indexes.set(descriptor.sha256, index);
+    }
     const entry = Object.hasOwn(index.entries, wordId) ? index.entries[wordId] : undefined;
     if (!entry) throw new Error('这个词暂不在本站发音学习包中，可选择设备英语声音。');
+    if (selected && entry.pack !== selected.id) throw new Error('单词与发音位置不匹配，请更新页面后重试。');
     const pack = manifest.packs.find(candidate => candidate.id === entry.pack);
     if (!pack) throw new Error('发音分包不存在。');
     const bytes = await verified(pack, options, await cacheFor(options));
@@ -164,19 +190,23 @@ async function progress(manifest: AudioManifest, options: AudioOptions, cache: C
   for (const pack of manifest.packs) {
     active(options.signal);
     const cached = await cache.match(assetUrl(pack.file, pack.sha256, options).href);
-    if (cached?.headers.get('X-Word-Audio-SHA256') === pack.sha256 && cached.headers.get('Content-Length') === String(pack.bytes)) { completed += 1; bytes += pack.bytes; }
+    const smallIndex = pack.index ? await cache.match(assetUrl(pack.index.file, pack.index.sha256, options).href) : null;
+    const indexReady = !pack.index || (smallIndex?.headers.get('X-Word-Audio-SHA256') === pack.index.sha256 && smallIndex.headers.get('Content-Length') === String(pack.index.bytes));
+    if (indexReady && cached?.headers.get('X-Word-Audio-SHA256') === pack.sha256 && cached.headers.get('Content-Length') === String(pack.bytes)) { completed += 1; bytes += pack.bytes + (pack.index?.bytes ?? 0); }
   }
-  return { completed, total: manifest.packs.length, bytes, totalBytes: manifest.packs.reduce((sum, pack) => sum + pack.bytes, 0) };
+  return { completed, total: manifest.packs.length, bytes, totalBytes: manifest.packs.reduce((sum, pack) => sum + pack.bytes + (pack.index?.bytes ?? 0), 0) };
 }
 export async function getAudioProgress(options: AudioOptions): Promise<AudioDownloadProgress> {
-  const { manifest } = await catalog(options);
+  const manifest = await catalog(options);
   return progress(manifest, options, await cacheFor(options));
 }
 export async function downloadAllAudio(options: AudioOptions): Promise<AudioDownloadProgress> {
-  const { manifest } = await catalog(options); const cache = await cacheFor(options);
+  const manifest = await catalog(options); const cache = await cacheFor(options);
+  if (manifest.packs.some(pack => !pack.index)) parseAudioIndex(json(await verified(manifest.index, options, cache)), manifest);
   let current = await progress(manifest, options, cache); options.onProgress?.(current);
   for (const pack of manifest.packs) {
     active(options.signal);
+    if (pack.index) parseAudioPackIndex(json(await verified(pack.index, options, cache)), manifest, pack);
     await verified(pack, options, cache);
     current = await progress(manifest, options, cache); options.onProgress?.(current);
   }
