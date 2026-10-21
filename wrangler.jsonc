@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "yanxai-word",
+  "account_id": "13c5d2639d5dbcfa28f063542b41f326",
+  "compatibility_date": "2026-10-21",
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "word.yanxai.com", "custom_domain": true }]
+}
