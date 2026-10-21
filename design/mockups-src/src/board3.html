@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh"><head>{{head}}</head>
+<body>
+<div class="board">
+  <div class="board-head">
+    <div class="kicker">原型 V1 · 待验收 · 3 / 3</div>
+    <h1>首页 · 组结算 · 生词本 · 设置</h1>
+    <p>整本 ECDICT 词典（770,611 条）全部入库；学习时默认只出考试词，并过滤掉 a、the、is 这类基础词（剩约 13,300 词）。每点一次都实时存进数据库，关掉再打开从上次的位置继续。</p>
+  </div>
+  <div class="row">
+
+    <!-- home -->
+    <figure class="shot">
+      <div class="label"><span class="num">1</span>首页：进度 + 继续学习</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="page">
+          <div class="page-head">
+            <div><div class="d">10月21日 · 周三</div><h2>背单词</h2></div>
+            <span class="streak">{{i:flame}}连续 12 天</span>
+          </div>
+          <div class="panel prog-panel">
+            <div class="ring">
+              <svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="39" fill="none" stroke="#EEECE7" stroke-width="10"/><circle cx="46" cy="46" r="39" fill="none" stroke="#128761" stroke-width="10" stroke-linecap="round" stroke-dasharray="23.8 245"/><circle cx="46" cy="46" r="39" fill="none" stroke="#B26F12" stroke-width="10" stroke-dasharray="4 245" stroke-dashoffset="-28"/></svg>
+              <div class="pct"><div>9.7%<small>已掌握</small></div></div>
+            </div>
+            <div>
+              <div class="big-num">1,286<span>/ 13,324 词</span></div>
+              <div class="sub">学习中 <b>214</b> · 未学 <b>11,824</b></div>
+              <div class="sub">今天 3 组 · 认识 <b>42</b> · 不认识 <b>18</b></div>
+            </div>
+          </div>
+          <div class="continue">
+            <div><div class="c1">继续上次进度</div><div class="c2">第 13 组 · 看词记忆 8 / 20</div></div>
+            <span class="go">{{i:arrow-right}}</span>
+          </div>
+          <div class="modes">
+            <div class="mode"><div class="mi">{{i:book-open}}</div><div class="mt">看词记忆</div><div class="md">显示单词<br>遮住词性和中文</div></div>
+            <div class="mode"><div class="mi g">{{i:headphones}}</div><div class="mt">听音辨词</div><div class="md">只听读音<br>判断认不认识</div></div>
+          </div>
+          <div class="sec-head">不认识最多<span>生词本 ›</span></div>
+          <div class="panel wl">
+            <div class="it"><div><div class="w">meticulous</div><div class="zh">一丝不苟的；精确的</div></div><div class="rt"><span class="cnt">×7</span></div></div>
+            <div class="it"><div><div class="w">ubiquitous</div><div class="zh">无所不在的；普遍存在的</div></div><div class="rt"><span class="cnt">×5</span></div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on">{{i:house}}学习</div>
+          <div class="tab">{{i:notebook-pen}}生词本</div>
+          <div class="tab">{{i:settings}}设置</div>
+        </div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>圆环：<b>绿 = 已掌握</b>，黄 = 学习中</li>
+        <li>「继续」精确回到上次那一组的<b>第几个词</b></li>
+        <li>两个模式共用一份进度和不认识次数</li>
+      </ul>
+    </figure>
+
+    <!-- summary -->
+    <figure class="shot">
+      <div class="label"><span class="num">2</span>一组结束：小结</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:x}}</button>
+          <div class="tb-title"><div class="t1">看词记忆</div></div>
+          <span style="width:40px"></span>
+        </div>
+        <div class="page" style="padding-top:0">
+          <div class="hero">
+            <div class="badge">{{i:check}}</div>
+            <h3>第 12 组完成</h3>
+            <p>20 个词 · 用时 3 分 42 秒</p>
+          </div>
+          <div class="tiles">
+            <div class="tile g"><div class="tv">14</div><div class="tl">认识</div></div>
+            <div class="tile r"><div class="tv">6</div><div class="tl">不认识</div></div>
+            <div class="tile a"><div class="tv">+9</div><div class="tl">新掌握</div></div>
+          </div>
+          <div class="sec-head">这 6 个词会在第 13 组再出现</div>
+          <div class="panel wl compact" style="padding-top:14px;padding-bottom:8px">
+            <div class="it"><div class="w">ambiguous</div><div class="zh">模棱两可的</div><div class="rt"><span class="cnt">×4</span></div></div>
+            <div class="it"><div class="w">reluctant</div><div class="zh">不情愿的；勉强的</div><div class="rt"><span class="cnt">×3</span></div></div>
+            <div class="it"><div class="w">contemplate</div><div class="zh">沉思；盘算</div><div class="rt"><span class="cnt lo">×2</span></div></div>
+            <div class="it"><div class="w">compel</div><div class="zh">强迫；迫使</div><div class="rt"><span class="cnt lo">×2</span></div></div>
+            <div class="it"><div class="w">scrutiny</div><div class="zh">仔细检查；监视</div><div class="rt"><span class="cnt lo">×1</span></div></div>
+            <div class="it"><div class="w">deteriorate</div><div class="zh">（使）恶化</div><div class="rt"><span class="cnt lo">×1</span></div></div>
+          </div>
+        </div>
+        <div class="actions" style="padding-top:12px">
+          <button class="btn primary">开始第 13 组{{i:arrow-right}}</button>
+        </div>
+        <div class="hint">第 13 组 = 6 个复习词 + 14 个新词</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>本组不认识的词列在这里，<b>自动排进下一组</b></li>
+        <li>×N 是这个词<b>累计</b>不认识的次数</li>
+        <li>下一组 = 复习词优先，不够 20 个再补新词</li>
+      </ul>
+    </figure>
+
+    <!-- wordbook -->
+    <figure class="shot">
+      <div class="label"><span class="num">3</span>生词本：按不认识次数排行</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="page">
+          <div class="page-head"><div><div class="d">所有点过「不认识」的词</div><h2>生词本</h2></div></div>
+          <div class="search">{{i:search}}搜索单词或中文</div>
+          <div class="seg"><span class="on">学习中 214</span><span>已掌握 272</span><span>全部 486</span></div>
+          <div class="sortline"><span>按不认识次数 ↓</span><span>{{i:volume-2}}</span></div>
+          <div class="panel wl">
+            <div class="it"><div><div class="w">meticulous<span class="ph">/məˈtɪkjələs/</span></div><div class="zh">一丝不苟的；精确的</div></div><div class="rt"><span class="cnt">×7</span><span class="state"><span class="dots"><i class="f"></i><i></i></span></span></div></div>
+            <div class="it"><div><div class="w">ubiquitous<span class="ph">/juːˈbɪkwɪtəs/</span></div><div class="zh">无所不在的；普遍存在的</div></div><div class="rt"><span class="cnt">×5</span><span class="state"><span class="dots"><i></i><i></i></span></span></div></div>
+            <div class="it"><div><div class="w">plausible<span class="ph">/ˈplɔːzəbl/</span></div><div class="zh">貌似合理的；貌似真实的</div></div><div class="rt"><span class="cnt">×4</span><span class="state"><span class="dots"><i class="f"></i><i></i></span></span></div></div>
+            <div class="it"><div><div class="w">ambiguous<span class="ph">/æmˈbɪɡjuəs/</span></div><div class="zh">不明确的；模棱两可的</div></div><div class="rt"><span class="cnt">×4</span><span class="state"><span class="dots"><i></i><i></i></span></span></div></div>
+            <div class="it"><div><div class="w">resilient<span class="ph">/rɪˈzɪliənt/</span></div><div class="zh">有弹力的；能迅速恢复的</div></div><div class="rt"><span class="cnt">×3</span><span class="state"><span class="dots"><i></i><i></i></span></span></div></div>
+            <div class="it"><div><div class="w">elaborate<span class="ph">/ɪˈlæbərət/</span></div><div class="zh">精细的；详细说明</div></div><div class="rt"><span class="cnt">×3</span><span class="state"><span class="dots"><i class="f"></i><i></i></span></span></div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab">{{i:house}}学习</div>
+          <div class="tab on">{{i:notebook-pen}}生词本</div>
+          <div class="tab">{{i:settings}}设置</div>
+        </div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>只收点过「不认识」的词，<b>按次数从多到少</b>排</li>
+        <li>右侧 ●○ 是离掌握还差几次</li>
+        <li>点单词可发音、看完整释义；可单独拿生词本来刷</li>
+      </ul>
+    </figure>
+
+    <!-- settings -->
+    <figure class="shot">
+      <div class="label"><span class="num">4</span>设置：词库范围和过滤</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="page" style="gap:12px">
+          <div class="page-head"><div><h2>设置</h2></div></div>
+          <div class="set-label">词库范围（多选）</div>
+          <div class="set-group">
+            <div class="pick" style="padding-top:12px">
+              <span>高考</span><span class="on">{{i:check}}四级</span><span class="on">{{i:check}}六级</span><span class="on">{{i:check}}考研</span><span class="on">{{i:check}}托福</span><span class="on">{{i:check}}雅思</span><span class="on">{{i:check}}GRE</span><span>全部词条</span>
+            </div>
+            <div class="set-row"><div><div class="sl">过滤基础词</div><div class="sd">跳过中考词和最常用的 2000 个词<br>（a、the、is、have…）</div></div><span class="toggle"></span></div>
+          </div>
+          <div class="set-label">学习</div>
+          <div class="set-group">
+            <div class="set-row"><span class="sl">每组单词数</span><span class="mini-seg"><span>10</span><span class="on">20</span><span>30</span><span>50</span></span></div>
+            <div class="set-row"><div><div class="sl">掌握标准</div><div class="sd">不认识后需再认识几次</div></div><span class="mini-seg"><span>1</span><span class="on">2</span><span>3</span></span></div>
+            <div class="set-row"><span class="sl">出词顺序</span><span class="mini-seg"><span class="on">按词频</span><span>随机</span></span></div>
+          </div>
+          <div class="set-label">发音</div>
+          <div class="set-group">
+            <div class="set-row"><span class="sl">口音</span><span class="mini-seg"><span class="on">美音</span><span>英音</span></span></div>
+            <div class="set-row"><span class="sl">自动朗读</span><span class="toggle"></span></div>
+            <div class="set-row"><span class="sl">朗读遍数</span><span class="mini-seg"><span class="on">1</span><span>2</span><span>3</span></span></div>
+          </div>
+        </div>
+        <div class="fade" style="bottom:86px"></div>
+        <div class="tabbar">
+          <div class="tab">{{i:house}}学习</div>
+          <div class="tab">{{i:notebook-pen}}生词本</div>
+          <div class="tab on">{{i:settings}}设置</div>
+        </div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>默认：四六级 / 考研 / 托福 / 雅思 / GRE，<b>约 13,300 词</b></li>
+        <li>「过滤基础词」默认打开，a、the 这类词永远不出</li>
+        <li>往下还有：导出学习记录、重置进度</li>
+      </ul>
+    </figure>
+
+  </div>
+</div>
+</body></html>

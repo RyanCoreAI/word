@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh"><head>{{head}}</head>
+<body>
+<div class="board">
+  <div class="board-head">
+    <div class="kicker">原型 V1 · 待验收 · 2 / 3</div>
+    <h1>听音辨词：只朗读，不显示单词</h1>
+    <p>拼写、词性和中文全部隐藏，只播放读音。点「认识」立即滑到下一个词；点「不认识」立即显示单词和中文。复习和计数规则跟看词模式一样，两种模式共用同一份进度。</p>
+  </div>
+  <div class="row">
+
+    <!-- 1 -->
+    <figure class="shot">
+      <div class="label"><span class="num">1</span>只播放读音，单词隐藏</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">听音辨词</div><div class="t2">第 3 组 · 新词 14 · 复习 6</div></div>
+          <button class="icon-btn">{{i:settings}}</button>
+        </div>
+        <div class="prog">
+          <div class="prog-meta"><span><b>7</b> / 20</span><span><em class="g">认识 5</em><em class="r">不认识 1</em></span></div>
+          {{segs:gggrggcxxxxxxxxxxxxx}}
+        </div>
+        <div class="stage"><div class="card">
+          <div class="chips"><span class="chip acc">{{i:headphones}}听音</span></div>
+          <div class="listen-zone">
+            <div class="big-play">{{i:volume-2}}</div>
+            <div class="big-wave">
+              <i style="height:8px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:26px"></i><i style="height:34px"></i><i style="height:20px"></i><i style="height:12px"></i><i style="height:24px"></i><i style="height:30px"></i><i style="height:16px"></i><i style="height:10px"></i><i style="height:20px"></i><i style="height:14px"></i><i style="height:8px"></i><i style="height:5px"></i>
+            </div>
+            <div class="listen-cap">正在朗读 · 第 1 遍</div>
+            <div class="hidden-word">{{i:eye-off}}拼写和释义已隐藏</div>
+          </div>
+          <div class="ctrls">
+            <span class="ctrl">{{i:rotate-ccw}}再听一遍</span>
+            <span class="ctrl">{{i:snail}}慢速</span>
+            <span class="ctrl sel">美音</span>
+          </div>
+        </div></div>
+        <div class="actions">
+          <button class="btn bad">{{i:x}}不认识</button>
+          <button class="btn good">{{i:check}}认识</button>
+        </div>
+        <div class="hint">键盘 <kbd>←</kbd> 不认识 · <kbd>→</kbd> 认识 · <kbd>空格</kbd> 重听</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>进入即朗读，可设置<b>自动读 1–3 遍</b></li>
+        <li>可以重听、<b>慢速 0.7×</b>、切换美 / 英音</li>
+        <li>屏幕上<b>不出现拼写</b>，只靠耳朵判断</li>
+      </ul>
+    </figure>
+
+    <!-- 2 -->
+    <figure class="shot">
+      <div class="label"><span class="num">2</span>点「不认识」：立即揭晓</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">听音辨词</div><div class="t2">第 3 组 · 新词 14 · 复习 6</div></div>
+          <button class="icon-btn">{{i:settings}}</button>
+        </div>
+        <div class="prog">
+          <div class="prog-meta"><span><b>7</b> / 20</span><span><em class="g">认识 5</em><em class="r">不认识 2</em></span></div>
+          {{segs:gggrggrxxxxxxxxxxxxx}}
+        </div>
+        <div class="stage"><div class="card">
+          <div class="chips"><span class="chip bad">不认识 ×1</span><span class="chip">六级</span><span class="chip">考研</span><span class="chip">托福</span><span class="chip">雅思</span></div>
+          <div class="word-zone">
+            <div class="word">scrutiny</div>
+            <div class="phon"><span class="acc-tag">美</span>/ˈskruːtəni/<span class="spk on">{{i:volume-2}}</span></div>
+            <div class="reading"><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:5px"></i></span>对照拼写再读一遍</div>
+          </div>
+          <div class="meaning">
+            <div class="mrow"><span class="pos">n.</span><span>细看；仔细检查；监视</span></div>
+            <div class="mrow"><span class="pos">n.</span><span>（选票的）复查；审查</span></div>
+          </div>
+          <div class="after"><span>已加入第 4 组</span><span class="dots">再认识 <i></i><i></i> 次才算掌握</span></div>
+        </div></div>
+        <div class="actions">
+          <button class="btn ghost">{{i:rotate-ccw}}撤销</button>
+          <button class="btn dark">下一个{{i:arrow-right}}</button>
+        </div>
+        <div class="hint"><kbd>空格</kbd> 或点卡片任意处也能继续</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li><b>拼写、音标、词性、中文</b>一次性全部显示</li>
+        <li>自动再读一遍，帮你把读音和拼写对上</li>
+        <li>同样记一次「不认识」，排进下一组复习</li>
+      </ul>
+    </figure>
+
+    <!-- 3 -->
+    <figure class="shot">
+      <div class="label"><span class="num">3</span>点「认识」：丝滑切到下一个</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">听音辨词</div><div class="t2">第 3 组 · 新词 14 · 复习 6</div></div>
+          <button class="icon-btn">{{i:settings}}</button>
+        </div>
+        <div class="prog">
+          <div class="prog-meta"><span><b>8</b> / 20</span><span><em class="g">认识 6</em><em class="r">不认识 1</em></span></div>
+          {{segs:gggrgggcxxxxxxxxxxxx}}
+        </div>
+        <div class="stage">
+          <div class="toast">{{i:check}}认识</div>
+          <div class="ghost-card"><div class="chips"><span class="chip acc">{{i:headphones}}听音</span></div><div class="gp"></div></div>
+          <div class="motion"><i style="width:46px"></i><i style="width:70px"></i><i style="width:38px"></i></div>
+          <div class="card incoming">
+            <div class="chips"><span class="chip acc">{{i:headphones}}听音</span></div>
+            <div class="listen-zone">
+              <div class="big-play">{{i:volume-2}}</div>
+              <div class="big-wave">
+                <i style="height:6px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:28px"></i><i style="height:34px"></i><i style="height:22px"></i><i style="height:14px"></i><i style="height:24px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:16px"></i><i style="height:8px"></i><i style="height:5px"></i>
+              </div>
+              <div class="listen-cap">正在朗读 · 第 1 遍</div>
+              <div class="hidden-word">{{i:eye-off}}拼写和释义已隐藏</div>
+            </div>
+            <div class="ctrls">
+              <span class="ctrl">{{i:rotate-ccw}}再听一遍</span>
+              <span class="ctrl">{{i:snail}}慢速</span>
+              <span class="ctrl sel">美音</span>
+            </div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn bad">{{i:x}}不认识</button>
+          <button class="btn good">{{i:check}}认识</button>
+        </div>
+        <div class="hint">切换约 0.2 秒 · 下一个词的读音已提前缓存</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>旧卡片向左滑出，新卡片同时进场，<b>没有白屏、没有加载圈</b></li>
+        <li>后面几个词的读音<b>提前缓存</b>，新卡片一进场就出声</li>
+        <li>看词模式点「认识」也是同样的切换效果</li>
+      </ul>
+    </figure>
+
+  </div>
+</div>
+</body></html>

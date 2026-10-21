@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh"><head>{{head}}</head>
+<body>
+<div class="board">
+  <div class="board-head">
+    <div class="kicker">原型 V1 · 待验收 · 1 / 3</div>
+    <h1>看词记忆：显示单词并自动朗读，遮住词性和中文</h1>
+    <p>每组 20 个词。点「认识」直接滑到下一个；点「不认识」在原位展开词性和中文，这个词排进下一组，之后要再认识 2 次才算掌握。</p>
+  </div>
+  <div class="row">
+
+    <!-- 1 -->
+    <figure class="shot">
+      <div class="label"><span class="num">1</span>出词：自动朗读，释义遮住</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">看词记忆</div><div class="t2">第 3 组 · 新词 14 · 复习 6</div></div>
+          <button class="icon-btn">{{i:settings}}</button>
+        </div>
+        <div class="prog">
+          <div class="prog-meta"><span><b>8</b> / 20</span><span><em class="g">认识 5</em><em class="r">不认识 2</em></span></div>
+          {{segs:ggrggrgcxxxxxxxxxxxx}}
+        </div>
+        <div class="stage"><div class="card">
+          <div class="chips"><span class="chip">四级</span><span class="chip">六级</span><span class="chip">考研</span><span class="chip">托福</span></div>
+          <div class="word-zone">
+            <div class="word">elaborate</div>
+            <div class="phon"><span class="acc-tag">美</span>/ɪˈlæbərət/<span class="spk on">{{i:volume-2}}</span></div>
+            <div class="reading"><span class="wave"><i style="height:6px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:5px"></i></span>自动朗读中</div>
+          </div>
+          <div class="mask">{{i:eye-off}}<div class="m1">词性和中文已遮住</div><div class="m2">点「不认识」立即显示</div></div>
+        </div></div>
+        <div class="actions">
+          <button class="btn bad">{{i:x}}不认识</button>
+          <button class="btn good">{{i:check}}认识</button>
+        </div>
+        <div class="hint">键盘 <kbd>←</kbd> 不认识 · <kbd>→</kbd> 认识 · <kbd>空格</kbd> 重听</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>单词一出现就<b>自动朗读</b>（默认美音，可切英音），点喇叭可以重听</li>
+        <li>词性和中文用遮罩盖住，<b>不会提前看到</b></li>
+        <li>顶部 20 格进度条：绿 = 认识，红 = 不认识，黑 = 当前</li>
+      </ul>
+    </figure>
+
+    <!-- 2 -->
+    <figure class="shot">
+      <div class="label"><span class="num">2</span>点「不认识」：立即显示词性和中文</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">看词记忆</div><div class="t2">第 3 组 · 新词 14 · 复习 6</div></div>
+          <button class="icon-btn">{{i:settings}}</button>
+        </div>
+        <div class="prog">
+          <div class="prog-meta"><span><b>8</b> / 20</span><span><em class="g">认识 5</em><em class="r">不认识 3</em></span></div>
+          {{segs:ggrggrgrxxxxxxxxxxxx}}
+        </div>
+        <div class="stage"><div class="card">
+          <div class="chips"><span class="chip bad">不认识 ×3</span><span class="chip">四级</span><span class="chip">六级</span><span class="chip">考研</span><span class="chip">托福</span></div>
+          <div class="word-zone">
+            <div class="word">elaborate</div>
+            <div class="phon"><span class="acc-tag">美</span>/ɪˈlæbərət/<span class="spk">{{i:volume-2}}</span></div>
+          </div>
+          <div class="meaning">
+            <div class="mrow"><span class="pos">adj.</span><span>精细的；详尽的；精心计划的</span></div>
+            <div class="mrow"><span class="pos">vt.</span><span>详细说明；用心地制作</span></div>
+            <div class="mrow"><span class="pos">vi.</span><span>变复杂；作详细说明</span></div>
+          </div>
+          <div class="after"><span>已加入第 4 组</span><span class="dots">再认识 <i></i><i></i> 次才算掌握</span></div>
+        </div></div>
+        <div class="actions">
+          <button class="btn ghost">{{i:rotate-ccw}}撤销</button>
+          <button class="btn dark">下一个{{i:arrow-right}}</button>
+        </div>
+        <div class="hint"><kbd>空格</kbd> 或点卡片任意处也能继续</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>释义在遮罩的<b>原位置展开</b>，按钮和单词都不移动</li>
+        <li>「不认识」次数写进数据库，这个词累计 <b>3 次</b></li>
+        <li>它会自动排进下一组；之后要<b>再认识 2 次</b>才算掌握</li>
+        <li>手滑点错了可以「撤销」</li>
+      </ul>
+    </figure>
+
+    <!-- 3 -->
+    <figure class="shot">
+      <div class="label"><span class="num">3</span>复习词：在后面的组里再次出现</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">看词记忆</div><div class="t2">第 5 组 · 新词 15 · 复习 5</div></div>
+          <button class="icon-btn">{{i:settings}}</button>
+        </div>
+        <div class="prog">
+          <div class="prog-meta"><span><b>3</b> / 20</span><span><em class="g">认识 2</em><em class="r">不认识 0</em></span></div>
+          {{segs:ggcxxxxxxxxxxxxxxxxx}}
+        </div>
+        <div class="stage"><div class="card">
+          <div class="chips"><span class="chip review">{{i:repeat}}复习</span><span class="chip bad">不认识 ×3</span><span class="chip good"><span class="dots"><i class="f"></i><i></i></span>&nbsp;已认识 1/2</span></div>
+          <div class="word-zone">
+            <div class="word">elaborate</div>
+            <div class="phon"><span class="acc-tag">美</span>/ɪˈlæbərət/<span class="spk on">{{i:volume-2}}</span></div>
+            <div class="reading"><span class="wave"><i style="height:10px"></i><i style="height:15px"></i><i style="height:7px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:6px"></i></span>自动朗读中</div>
+          </div>
+          <div class="mask">{{i:eye-off}}<div class="m1">词性和中文已遮住</div><div class="m2">点「不认识」立即显示</div></div>
+        </div></div>
+        <div class="actions">
+          <button class="btn bad">{{i:x}}不认识</button>
+          <button class="btn good">{{i:check}}认识</button>
+        </div>
+        <div class="hint">这次点「认识」→ 已掌握，移出学习队列</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>不认识过的词在后面的组里出现，标 <b>「复习」</b></li>
+        <li><b>●○</b> = 已认识 1 次；这次再点认识就算掌握，不再出现</li>
+        <li>如果又点了不认识：次数 +1，认识进度<b>清零</b>重新算</li>
+      </ul>
+    </figure>
+
+  </div>
+</div>
+</body></html>
