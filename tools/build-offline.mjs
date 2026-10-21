@@ -63,6 +63,8 @@ try {
 const hash = createHash('sha256');
 for (const file of files.sort()) hash.update(await readFile(path.join(dist, file)));
 hash.update(audioManifest.version);
+// Worker logic changes must get a fresh cache namespace even if UI assets do not.
+hash.update(await readFile(new URL(import.meta.url)));
 const version = hash.digest('hex').slice(0, 16);
 const sw = `const CACHE='word-shell-${version}';
 const SHELL=${JSON.stringify(files)};
@@ -70,7 +72,20 @@ const SHELL=${JSON.stringify(files)};
 // Requested fonts are cached below. The page also reports fonts already loaded
 // before first service-worker control, so the visible typography remains offline.
 const PRECACHE=SHELL.filter(path=>!(/\\.woff2?$/.test(path)));
-self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE.map(path => new URL(path,self.registration.scope).href)))));
+function navigationResponse(response){
+ if(!response?.redirected)return response;
+ const headers=new Headers(response.headers);headers.delete('content-encoding');headers.delete('content-length');
+ return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
+self.addEventListener('install', event => event.waitUntil((async()=>{
+ const cache=await caches.open(CACHE),scope=new URL(self.registration.scope);
+ await cache.addAll(PRECACHE.filter(path=>path!=='index.html').map(path=>new URL(path,scope).href));
+ // Workers Assets canonically redirects /index.html to /. Cache the real root
+ // under our stable key and strip redirect metadata before navigation uses it.
+ const response=await fetch(scope.href,{cache:'reload'});
+ if(!response.ok)throw new Error('Offline document could not be cached.');
+ await cache.put(new URL('index.html',scope).href,navigationResponse(response));
+})()));
 self.addEventListener('activate',event => event.waitUntil((async()=>{for(const key of await caches.keys()){if(key.startsWith('word-shell-')&&key!==CACHE)await caches.delete(key);}await self.clients.claim();})()));
 self.addEventListener('message',event=>{
  if(event.data?.type==='ACTIVATE_UPDATE')self.skipWaiting();
@@ -98,12 +113,12 @@ self.addEventListener('fetch',event=>{
  // Origin headers. Ignore that header variation within the explicit shell list.
  if(SHELL.includes(relative)){event.respondWith(caches.open(CACHE).then(async cache=>{
   const key=new URL(relative,scope).href,cached=await cache.match(key,{ignoreVary:true});
-  if(cached)return cached;
+  if(cached)return event.request.mode==='navigate'?navigationResponse(cached):cached;
   const response=await fetch(event.request);
   if(response.ok)await cache.put(key,response.clone());
   return response;
  }));return;}
- if(event.request.mode==='navigate')event.respondWith(caches.open(CACHE).then(async cache=>(await cache.match(new URL('index.html',scope).href,{ignoreVary:true}))||fetch(event.request)));
+ if(event.request.mode==='navigate')event.respondWith(caches.open(CACHE).then(async cache=>navigationResponse(await cache.match(new URL('index.html',scope).href,{ignoreVary:true}))||fetch(event.request)));
 });
 `;
 await writeFile(path.join(dist, 'sw.js'), sw);

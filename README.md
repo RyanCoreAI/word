@@ -24,6 +24,8 @@ npm run build
 npm run preview
 ```
 
+本机安装 Chrome 后，可运行 `node tools/sw-navigation-smoke.mjs`。它用真实浏览器及 Service Worker 验证静态托管的 HTML 规范地址跳转、旧跳转缓存和离线刷新；无需启动 preview。
+
 ## 数据和发音
 
 - IndexedDB 保存学习快照，逐次写入，失败不会静默推进。多标签页通过 revision 防止旧记录覆盖。
