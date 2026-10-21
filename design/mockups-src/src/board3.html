@@ -5,7 +5,7 @@
   <div class="board-head">
     <div class="kicker">原型 V1 · 待验收 · 3 / 3</div>
     <h1>首页 · 组结算 · 生词本 · 设置</h1>
-    <p>整本 ECDICT 词典（770,611 条）全部入库；学习时默认只出考试词，并过滤掉 a、the、is 这类基础词（剩约 13,300 词）。每点一次都实时存进数据库，关掉再打开从上次的位置继续。</p>
+    <p>整本 ECDICT 词典（770,611 条）全部入库；学习时默认只出四六级 / 考研 / 托福 / 雅思 / GRE 词，并过滤掉 a、the、is 这类基础词和 -ed / -ing / 复数等变形（剩 11,481 词）。每点一次都实时存进数据库，关掉再打开从上次的位置继续。</p>
   </div>
   <div class="row">
 
@@ -21,12 +21,12 @@
           </div>
           <div class="panel prog-panel">
             <div class="ring">
-              <svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="39" fill="none" stroke="#EEECE7" stroke-width="10"/><circle cx="46" cy="46" r="39" fill="none" stroke="#128761" stroke-width="10" stroke-linecap="round" stroke-dasharray="23.8 245"/><circle cx="46" cy="46" r="39" fill="none" stroke="#B26F12" stroke-width="10" stroke-dasharray="4 245" stroke-dashoffset="-28"/></svg>
-              <div class="pct"><div>9.7%<small>已掌握</small></div></div>
+              <svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="39" fill="none" stroke="#EEECE7" stroke-width="10"/><circle cx="46" cy="46" r="39" fill="none" stroke="#128761" stroke-width="10" stroke-linecap="round" stroke-dasharray="27.4 245"/><circle cx="46" cy="46" r="39" fill="none" stroke="#B26F12" stroke-width="10" stroke-dasharray="4.6 245" stroke-dashoffset="-31"/></svg>
+              <div class="pct"><div>11.2%<small>已掌握</small></div></div>
             </div>
             <div>
-              <div class="big-num">1,286<span>/ 13,324 词</span></div>
-              <div class="sub">学习中 <b>214</b> · 未学 <b>11,824</b></div>
+              <div class="big-num">1,286<span>/ 11,481 词</span></div>
+              <div class="sub">学习中 <b>214</b> · 未学 <b>9,981</b></div>
               <div class="sub">今天 3 组 · 认识 <b>42</b> · 不认识 <b>18</b></div>
             </div>
           </div>
@@ -111,7 +111,7 @@
           <div class="page-head"><div><div class="d">所有点过「不认识」的词</div><h2>生词本</h2></div></div>
           <div class="search">{{i:search}}搜索单词或中文</div>
           <div class="seg"><span class="on">学习中 214</span><span>已掌握 272</span><span>全部 486</span></div>
-          <div class="sortline"><span>按不认识次数 ↓</span><span>{{i:volume-2}}</span></div>
+          <div class="sortline" style="align-items:center"><span>按不认识次数 ↓</span><span class="chip acc" style="font-size:12.5px;padding:5px 11px">{{i:play}}刷这 214 个词</span></div>
           <div class="panel wl">
             <div class="it"><div><div class="w">meticulous<span class="ph">/məˈtɪkjələs/</span></div><div class="zh">一丝不苟的；精确的</div></div><div class="rt"><span class="cnt">×7</span><span class="state"><span class="dots"><i class="f"></i><i></i></span></span></div></div>
             <div class="it"><div><div class="w">ubiquitous<span class="ph">/juːˈbɪkwɪtəs/</span></div><div class="zh">无所不在的；普遍存在的</div></div><div class="rt"><span class="cnt">×5</span><span class="state"><span class="dots"><i></i><i></i></span></span></div></div>
@@ -131,7 +131,7 @@
       <ul class="notes">
         <li>只收点过「不认识」的词，<b>按次数从多到少</b>排</li>
         <li>右侧 ●○ 是离掌握还差几次</li>
-        <li>点单词可发音、看完整释义；可单独拿生词本来刷</li>
+        <li>点单词看详情；「刷这 214 个词」只用生词本出题</li>
       </ul>
     </figure>
 
@@ -145,7 +145,7 @@
           <div class="set-label">词库范围（多选）</div>
           <div class="set-group">
             <div class="pick" style="padding-top:12px">
-              <span>高考</span><span class="on">{{i:check}}四级</span><span class="on">{{i:check}}六级</span><span class="on">{{i:check}}考研</span><span class="on">{{i:check}}托福</span><span class="on">{{i:check}}雅思</span><span class="on">{{i:check}}GRE</span><span>全部词条</span>
+              <span>高考</span><span class="on">{{i:check}}四级</span><span class="on">{{i:check}}六级</span><span class="on">{{i:check}}考研</span><span class="on">{{i:check}}托福</span><span class="on">{{i:check}}雅思</span><span class="on">{{i:check}}GRE</span><span>高频补充</span>
             </div>
             <div class="set-row"><div><div class="sl">过滤基础词</div><div class="sd">跳过中考词和最常用的 2000 个词<br>（a、the、is、have…）</div></div><span class="toggle"></span></div>
           </div>
@@ -171,7 +171,7 @@
         <div class="home-ind"></div>
       </div></div>
       <ul class="notes">
-        <li>默认：四六级 / 考研 / 托福 / 雅思 / GRE，<b>约 13,300 词</b></li>
+        <li>默认：四六级 / 考研 / 托福 / 雅思 / GRE，<b>共 11,481 词</b></li>
         <li>「过滤基础词」默认打开，a、the 这类词永远不出</li>
         <li>往下还有：导出学习记录、重置进度</li>
       </ul>

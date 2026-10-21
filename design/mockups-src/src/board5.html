@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh"><head>{{head}}</head>
+<body>
+<div class="board">
+  <div class="board-head">
+    <div class="kicker">原型 V1 · 补充页面 · 5 / 6</div>
+    <h1>单词详情 · 账号与数据 · 绑定邮箱</h1>
+    <p>不用注册就能用（自动生成匿名账号）。想换手机不丢进度，就绑定一个邮箱。导出、重置、注销都在「账号与数据」里，这些是苹果和谷歌上架的硬性要求。</p>
+  </div>
+  <div class="row">
+
+    <!-- detail -->
+    <figure class="shot">
+      <div class="label"><span class="num">1</span>单词详情（生词本里点开）</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="page" style="opacity:.5">
+          <div class="page-head"><div><div class="d">所有点过「不认识」的词</div><h2>生词本</h2></div></div>
+          <div class="search">{{i:search}}搜索单词或中文</div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet" style="top:96px;display:flex;flex-direction:column;gap:16px">
+          <div class="grab" style="margin-bottom:0"></div>
+          <div>
+            <div class="chips"><span class="chip">六级</span><span class="chip">考研</span><span class="chip">托福</span><span class="chip">雅思</span></div>
+            <div class="d-word" style="margin-top:10px">scrutiny</div>
+            <div class="d-ph">
+              <span class="p"><span class="acc-tag">美</span>/ˈskruːtəni/<span class="spk on">{{i:volume-2}}</span></span>
+              <span class="p"><span class="acc-tag">英</span>/ˈskruːtɪni/<span class="spk">{{i:volume-2}}</span></span>
+            </div>
+          </div>
+          <div class="meaning" style="min-height:0">
+            <div class="mrow"><span class="pos">n.</span><span>细看；仔细检查；监视；选票检查</span></div>
+            <div class="sub-h">专业释义</div>
+            <div class="mrow"><span class="pos dom">经</span><span>复查；评核；仔细检查</span></div>
+          </div>
+          <div class="kv">
+            <div><div class="k">不认识</div><div class="v r">7 次</div></div>
+            <div><div class="k">认识</div><div class="v g">3 次</div></div>
+            <div><div class="k">状态</div><div class="v" style="font-size:15px;margin-top:6px;display:flex;gap:6px;align-items:center;white-space:nowrap">学习中<span class="dots"><i class="f"></i><i></i></span></div></div>
+          </div>
+          <div class="timeline">首次学习 <b>10月3日</b>（第 2 组）<br>最近一次不认识 <b>10月20日</b>（第 12 组）<br>下一次出现：<b>第 13 组</b></div>
+        </div>
+      </div></div>
+      <ul class="notes">
+        <li>同时显示<b>美音和英音</b>音标，各自可以播放</li>
+        <li>学习卡片上只显示常规词性；<b>专业释义</b>（医、法、经…）只在这里出现</li>
+        <li>下拉或点遮罩关闭</li>
+      </ul>
+    </figure>
+
+    <!-- account -->
+    <figure class="shot">
+      <div class="label"><span class="num">2</span>账号与数据（设置最下方进入）</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">账号与数据</div></div>
+          <span style="width:40px"></span>
+        </div>
+        <div class="page" style="gap:12px;padding-top:8px">
+          <div class="panel acct">
+            <div class="avatar">{{i:user-round}}</div>
+            <div style="flex:1"><div style="font-weight:650;font-size:16px">未绑定邮箱</div><div class="sub" style="margin-top:2px">绑定后换手机也不丢进度</div></div>
+            <span class="small-btn">绑定</span>
+          </div>
+          <div class="set-group">
+            <div class="link-row"><span>同步状态</span><span class="r ok">{{i:cloud-check}}已同步 · 刚刚</span></div>
+          </div>
+          <div class="set-label">数据</div>
+          <div class="set-group">
+            <div class="link-row"><span>导出学习记录</span><span class="r">CSV{{i:chevron-right}}</span></div>
+            <div class="link-row"><span>重置学习进度</span><span class="r">{{i:chevron-right}}</span></div>
+          </div>
+          <div class="set-label">关于</div>
+          <div class="set-group">
+            <div class="link-row"><span>隐私政策</span><span class="r">{{i:chevron-right}}</span></div>
+            <div class="link-row"><span>用户协议</span><span class="r">{{i:chevron-right}}</span></div>
+            <div class="link-row"><span>词典与开源许可</span><span class="r">ECDICT · CMUdict{{i:chevron-right}}</span></div>
+            <div class="link-row"><span>版本</span><span class="r">1.0.0 (12)</span></div>
+          </div>
+          <div class="set-group">
+            <div class="link-row danger"><span>注销账号</span><span class="r">{{i:chevron-right}}</span></div>
+          </div>
+        </div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>默认是<b>匿名账号</b>，打开就能用，不用注册</li>
+        <li>「重置」「注销」都要二次确认；注销会删除服务器上的全部数据</li>
+        <li>导出的 CSV 每行一个词：单词、中文、不认识次数、状态</li>
+      </ul>
+    </figure>
+
+    <!-- bind email -->
+    <figure class="shot">
+      <div class="label"><span class="num">3</span>绑定邮箱（验证码）</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="topbar">
+          <button class="icon-btn">{{i:chevron-left}}</button>
+          <div class="tb-title"><div class="t1">绑定邮箱</div></div>
+          <span style="width:40px"></span>
+        </div>
+        <div class="page" style="gap:14px;padding-top:18px">
+          <div>
+            <div class="ob-title" style="font-size:24px">换手机也不丢进度</div>
+            <div class="ob-sub">在新手机上用同一个邮箱登录，学习进度自动回来。</div>
+          </div>
+          <div class="field">{{i:mail}}<span>yanxai@example.com</span><span class="send">58 秒后重发</span></div>
+          <div class="fine">验证码已发送，10 分钟内有效</div>
+          <div class="codes"><span>3</span><span>8</span><span>1</span><span class="focus"><i class="caret"></i></span><span></span><span></span></div>
+          <div class="fine">收不到？看看垃圾邮件箱。<br>如果这个邮箱已经有进度，会和手机上的进度<b style="color:var(--ink)">合并</b>，不会覆盖。</div>
+        </div>
+        <div class="actions" style="padding-bottom:0">
+          <button class="btn primary" style="opacity:.45">绑定</button>
+        </div>
+        <div class="hint">输满 6 位自动提交</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>只用邮箱验证码，<b>不设密码</b></li>
+        <li>两边都有进度时合并：<b>两边的答题记录合在一起重新计算</b></li>
+        <li>同一邮箱 1 分钟只能发 1 次、1 天最多 10 次</li>
+      </ul>
+    </figure>
+
+  </div>
+</div>
+</body></html>

@@ -1,7 +1,12 @@
 // Inline lucide icons into templates, then screenshot each .board at 2x.
 const fs = require('fs');
 const path = require('path');
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+let chromium;
+try {
+  ({ chromium } = require('playwright'));
+} catch {
+  ({ chromium } = require('/opt/node-tools/node_modules/playwright'));
+}
 
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist');

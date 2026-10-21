@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh"><head>{{head}}</head>
+<body>
+<div class="board">
+  <div class="board-head">
+    <div class="kicker">原型 V1 · 补充页面 · 4 / 6</div>
+    <h1>首次打开 · 选词库 · 未学完的组</h1>
+    <p>第一次打开先征得隐私同意（国内应用商店的硬性要求），再选要背的词库。如果有一组没学完，又点了另一个模式，会先问你是继续还是放弃。</p>
+  </div>
+  <div class="row">
+
+    <!-- privacy -->
+    <figure class="shot">
+      <div class="label"><span class="num">1</span>首次打开：隐私同意</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="welcome up">
+          <div class="app-mark">词</div>
+          <div class="wt">背单词</div>
+          <div class="ws">每天几组，把单词真正记住</div>
+        </div>
+        <div class="scrim"></div>
+        <div class="modal bottom">
+          <h4>欢迎使用</h4>
+          <div class="lead">开始之前，请花 10 秒了解我们怎么处理你的数据</div>
+          <ul class="blist">
+            <li>{{i:shield-check}}<span>只保存<b>学习进度</b>：哪些词认识、不认识了几次</span></li>
+            <li>{{i:shield-check}}<span>不读取通讯录、位置、相册，<b>不要手机号</b></span></li>
+            <li>{{i:shield-check}}<span>进度加密同步到服务器，换手机不丢；可随时导出或注销</span></li>
+          </ul>
+          <div class="links">阅读完整的 <a>《用户协议》</a> 和 <a>《隐私政策》</a></div>
+          <div class="btn-col">
+            <button class="btn primary">同意并继续</button>
+            <button class="btn plain">不同意</button>
+          </div>
+        </div>
+        <div class="home-ind" style="z-index:8;background:#fff"></div>
+      </div></div>
+      <ul class="notes">
+        <li>同意之前<b>不联网、不生成任何标识</b></li>
+        <li>点「不同意」：再解释一次；仍不同意则退出</li>
+        <li>只在第一次出现；隐私政策更新后会再问一次</li>
+      </ul>
+    </figure>
+
+    <!-- scope -->
+    <figure class="shot">
+      <div class="label"><span class="num">2</span>首次打开：选择词库</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="page" style="gap:16px;padding-top:14px">
+          <div>
+            <div class="ob-step">第 1 步 / 共 1 步</div>
+            <div class="ob-title">你想背哪些词？</div>
+            <div class="ob-sub">可以多选，重复的词只算一次。以后在设置里随时改。</div>
+          </div>
+          <div class="scopes">
+            <div class="scope"><div class="sn">高考</div><div class="sc">1,567 词</div><span class="ck"></span></div>
+            <div class="scope on"><div class="sn">四级</div><div class="sc">2,469 词</div><span class="ck">{{i:check}}</span></div>
+            <div class="scope on"><div class="sn">六级</div><div class="sc">4,176 词</div><span class="ck">{{i:check}}</span></div>
+            <div class="scope on"><div class="sn">考研</div><div class="sc">3,472 词</div><span class="ck">{{i:check}}</span></div>
+            <div class="scope on"><div class="sn">托福</div><div class="sc">5,928 词</div><span class="ck">{{i:check}}</span></div>
+            <div class="scope on"><div class="sn">雅思</div><div class="sc">3,542 词</div><span class="ck">{{i:check}}</span></div>
+            <div class="scope on"><div class="sn">GRE</div><div class="sc">7,042 词</div><span class="ck">{{i:check}}</span></div>
+            <div class="scope"><div class="sn">高频补充</div><div class="sc">5,242 词</div><span class="ck"></span></div>
+          </div>
+          <div class="set-group">
+            <div class="set-row"><div><div class="sl">过滤基础词</div><div class="sd">跳过 a、the、is 这类最常见的词</div></div><span class="toggle"></span></div>
+          </div>
+          <div class="total"><span>去重后共</span><span><b>11,481</b> 词</span></div>
+        </div>
+        <div class="actions" style="padding-bottom:0">
+          <button class="btn primary">开始学习{{i:arrow-right}}</button>
+        </div>
+        <div class="hint">默认每组 20 个词</div>
+        <div class="home-ind"></div>
+      </div></div>
+      <ul class="notes">
+        <li>每个词库后面是<b>过滤基础词之后</b>的数量</li>
+        <li>底部总数实时变化，已经去掉重复</li>
+        <li>「高频补充」= 不在任何考试大纲里、但很常用的词</li>
+      </ul>
+    </figure>
+
+    <!-- unfinished -->
+    <figure class="shot">
+      <div class="label"><span class="num">3</span>有一组没学完时</div>
+      <div class="phone"><div class="screen">
+        {{status}}
+        <div class="page">
+          <div class="page-head">
+            <div><div class="d">10月21日 · 周三</div><h2>背单词</h2></div>
+            <span class="streak">{{i:flame}}连续 12 天</span>
+          </div>
+          <div class="panel prog-panel">
+            <div class="ring">
+              <svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="39" fill="none" stroke="#EEECE7" stroke-width="10"/><circle cx="46" cy="46" r="39" fill="none" stroke="#128761" stroke-width="10" stroke-linecap="round" stroke-dasharray="27.4 245"/></svg>
+              <div class="pct"><div>11.2%<small>已掌握</small></div></div>
+            </div>
+            <div><div class="big-num">1,286<span>/ 11,481 词</span></div><div class="sub">学习中 <b>214</b> · 未学 <b>9,981</b></div></div>
+          </div>
+          <div class="modes">
+            <div class="mode"><div class="mi">{{i:book-open}}</div><div class="mt">看词记忆</div><div class="md">显示单词<br>遮住词性和中文</div></div>
+            <div class="mode"><div class="mi g">{{i:headphones}}</div><div class="mt">听音辨词</div><div class="md">只听读音<br>判断认不认识</div></div>
+          </div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div style="text-align:center">
+            <div style="width:56px;height:56px;border-radius:50%;background:var(--review-soft);color:var(--review);display:grid;place-items:center;margin:4px auto 0">{{i:hourglass}}</div>
+            <div style="font-size:20px;font-weight:750;margin-top:12px">第 13 组还没学完</div>
+            <div style="font-size:14px;color:var(--ink-3);margin-top:6px">看词记忆 · 已完成 8 / 20</div>
+          </div>
+          <div style="margin:16px 0 18px">{{segs:ggrggrgrxxxxxxxxxxxx}}</div>
+          <div class="btn-col">
+            <button class="btn dark">继续第 13 组（看词记忆）</button>
+            <button class="btn ghost" style="width:100%;height:52px">放弃剩下的 12 个，开始听音辨词</button>
+          </div>
+          <div class="fine" style="text-align:center;margin-top:12px">已经答过的 8 个词，记录都会保留</div>
+        </div>
+      </div></div>
+      <ul class="notes">
+        <li>在首页点了<b>另一个模式</b>时弹出</li>
+        <li>放弃时：没出现过的新词放回词库，复习词留到下一组</li>
+        <li>杀掉 App 再打开，首页的「继续」按钮会接着这一组</li>
+      </ul>
+    </figure>
+
+  </div>
+</div>
+</body></html>
