@@ -21,6 +21,8 @@ export interface Settings {
   rate: number;
   autoSpeak: boolean;
   skipHintSeen: boolean;
+  haptics: boolean;
+  soundEffects: boolean;
 }
 
 export interface WordProgress {
@@ -112,6 +114,8 @@ export const DEFAULT_SETTINGS: Settings = {
   rate: 0.9,
   autoSpeak: true,
   skipHintSeen: false,
+  haptics: true,
+  soundEffects: true,
 };
 
 export const MODES: readonly Mode[] = ['look', 'listen'];

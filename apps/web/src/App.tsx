@@ -5,6 +5,7 @@ import type { AppState, Deck, Mode, Settings, Word } from '../../../packages/cor
 import { openWordDatabase, exportBackup, readBackupFile, type WordDatabase } from './lib/storage';
 import { readCachedStudy, loadStudyDictionary, downloadAll, getDownloadProgress, searchDictionary, type DictionaryManifest, type DownloadProgress } from './lib/dictionary';
 import { SpeechController, type SpeechState } from './lib/speech';
+import { FeedbackController } from './lib/feedback';
 import { HomePage, Meanings, Navigation, SearchBox, StudyPage, WordList, deckNames, modeNames, wordTags, wrongCount } from './components';
 import { DailyWords, LearningCalendar } from './LearningCalendar';
 import { InstallButton } from './InstallButton';
@@ -93,6 +94,7 @@ export default function App() {
   const dbRef = useRef<WordDatabase | null>(null);
   const stateRef = useRef<AppState | null>(null);
   const speechRef = useRef<SpeechController | null>(null);
+  const feedbackRef = useRef<FeedbackController | null>(null);
   const mutex = useRef(false);
   const nextClickAt = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -135,6 +137,11 @@ export default function App() {
     const controller = new SpeechController({ onStateChange: setAudio, onVoicesChange: setVoices });
     speechRef.current = controller;
     return () => { controller.dispose(); };
+  }, []);
+  useEffect(() => {
+    const feedback = new FeedbackController();
+    feedbackRef.current = feedback;
+    return () => { feedback.dispose(); };
   }, []);
 
   useEffect(() => {
@@ -209,7 +216,7 @@ export default function App() {
 
   const start = useCallback(async (newMode: Mode) => {
     if (!dictionary) return;
-    if (await commit(s => ensureSession(s, dictionary.words, newMode, Date.now()))) { setKnownPreview(null); setMode(newMode); setProgressMode(newMode); setPage('study'); }
+    if (await commit(s => ensureSession(s, dictionary.words, newMode, Date.now()))) { if (stateRef.current?.settings.haptics) feedbackRef.current?.vibrateStart(); setKnownPreview(null); setMode(newMode); setProgressMode(newMode); setPage('study'); }
   }, [commit, dictionary]);
   const doUndo = useCallback(async () => {
     const last = stateRef.current?.history.at(-1);
@@ -218,11 +225,12 @@ export default function App() {
   }, [commit]);
   const doSkip = useCallback(() => {
     const before = stateRef.current;
-    if (!before || !current || knownPreview) return;
+    if (!before || !current || knownPreview || mutex.current || performance.now() < nextClickAt.current || token !== getCurrentToken(before, mode)) return;
     const first = !before.settings.skipHintSeen;
     setToast('');
+    if (before.settings.soundEffects) void feedbackRef.current?.prepareSlash();
     void commit(s => skipWord(s, mode, token, Date.now()), true).then(ok => {
-      if (ok && stateRef.current?.skipped.includes(current.id)) setSkipNotice({ word: current.word, first });
+      if (ok && stateRef.current?.skipped.includes(current.id)) { if (before.settings.soundEffects) void feedbackRef.current?.playSlash(); setSkipNotice({ word: current.word, first }); }
     });
   }, [current, knownPreview, commit, mode, token]);
   const canAnswer = mode === 'look' || (audio.wordId === current?.id && audio.played && audio.status !== 'error');
@@ -356,6 +364,7 @@ export default function App() {
     {page === 'words' && <div className="page"><div className="page-head"><div><div className="d">每一次不认识，都有记录</div><h1>生词本</h1></div></div><SearchBox value={query} onChange={value => { setQuery(value); setVisibleCount(60); }} placeholder="搜索单词或中文" /><div className="seg">{([['learning','学习中'],['all','全部生词'],['skipped','已跳过']] as const).map(([key,title]) => <button className={wordFilter === key ? 'on' : ''} key={key} onClick={() => { setWordFilter(key); setQuery(''); setVisibleCount(60); }}>{title}</button>)}</div><div className="sortline"><span>{`共 ${filtered.length} 词 · 不认识次数 ↓ · 圆点：${mode === 'look' ? '看词' : '听音'}`}</span>{wordFilter === 'learning' && <button onClick={() => void start(mode)}>继续复习 <ArrowRight size={13} /></button>}</div><WordList state={state} mode={mode} words={filtered.slice(0, visibleCount)} onWord={setDetail} empty={query ? '没有找到匹配的单词。' : wordFilter === 'skipped' ? '还没有长期跳过的词。' : undefined} />{visibleCount < filtered.length && <button className="btn plain" onClick={() => setVisibleCount(n => n + 60)}>显示更多</button>}</div>}
     {page === 'settings' && <div className="page settings-page"><div className="page-head"><h1>设置</h1></div><div className="set-label">词库范围</div><div className="set-group"><div className="pick">{(['all','cet4','cet6','ky','toefl','ielts','gre'] as Deck[]).map(deck => <button key={deck} className={settings?.deck === deck ? 'on' : ''} onClick={() => changeSetting({ deck })}>{settings?.deck === deck && <Check size={14} />}{deckNames[deck]}</button>)}</div><div className="set-row"><div><div className="sl">过滤基础词</div><div className="sd">仅跳过 a、the 等极基础词<br />词库设置从下一组生效，旧生词保留</div></div><button className="toggle" role="switch" aria-label="过滤基础词" aria-checked={state.settings.skipBasic} onClick={() => changeSetting({ skipBasic: !state.settings.skipBasic })} /></div></div>
     <div className="set-label">学习</div><div className="set-group"><div className="set-row"><span className="sl">每组单词数</span><div className="mini-seg">{([10,20,30] as const).map(groupSize => <button key={groupSize} className={state.settings.groupSize === groupSize ? 'on' : ''} onClick={() => changeSetting({ groupSize })}>{groupSize}</button>)}</div></div><div className="set-row"><div><div className="sl">本轮完成标准</div><div className="sd">不认识后，连续认识两次</div></div><span className="chip good">2 次</span></div><div className="set-row"><span className="sl">出词顺序</span><span className="chip">复习优先 · 按词频补充</span></div></div>
+    <div className="set-label">触感与音效</div><div className="set-group"><div className="set-row"><div><div className="sl">开始学习震动</div><div className="sd">轻震一下 · 需要安卓浏览器支持</div></div><button className="toggle" role="switch" aria-label="开始学习震动" aria-checked={state.settings.haptics} onClick={() => changeSetting({ haptics: !state.settings.haptics })} /></div><div className="set-row"><div><div className="sl">斩词音效</div><div className="sd">斩词成功时播放短促刀切声</div></div><button className="toggle" role="switch" aria-label="斩词音效" aria-checked={state.settings.soundEffects} onClick={() => changeSetting({ soundEffects: !state.settings.soundEffects })} /></div></div>
     <div className="set-label">发音</div><div className="set-group"><div className="set-row"><span className="sl">口音</span><div className="mini-seg">{(['en-US','en-GB'] as const).map(accent => <button className={state.settings.accent === accent ? 'on' : ''} key={accent} onClick={() => changeSetting({ accent, voiceURI: '' })}>{accent === 'en-US' ? '美音' : '英音'}</button>)}</div></div><div className="set-row"><span className="sl">自动朗读</span><button className="toggle" role="switch" aria-label="自动朗读" aria-checked={state.settings.autoSpeak} onClick={() => changeSetting({ autoSpeak: !state.settings.autoSpeak })} /></div><div className="set-row vertical"><label className="sl" htmlFor="voice">发音来源</label><select id="voice" value={state.settings.voiceURI} onChange={e => changeSetting({ voiceURI: e.target.value })}><option value="">{state.settings.accent === 'en-US' ? '自动 · 优先本机 Samantha' : '自动 · 本机英国英语'}</option>{state.settings.voiceURI && !voices.some(v => v.localService && v.voiceURI === state.settings.voiceURI) && <option value={state.settings.voiceURI}>原声音当前不可用，请重新选择</option>}{voices.filter(v => v.localService && v.lang.replace('_','-').toLowerCase() === state.settings.accent.toLowerCase()).map(v => <option value={v.voiceURI} key={v.voiceURI}>{v.name} · 本机</option>)}</select><p className="sd">仅使用本机声音。优先 Samantha，没有时选择同口音的本地英语声音；安卓请在系统文字转语音设置中安装英文语音数据。当前浏览器没有暴露本地英文声音时会提示不可用，不改用在线音频。</p></div><div className="set-row"><label htmlFor="rate" className="sl">语速</label><select id="rate" value={state.settings.rate} onChange={e => changeSetting({ rate: Number(e.target.value) })}><option value={0.65}>慢速</option><option value={0.9}>适中</option><option value={1}>正常</option></select></div><div className="set-row"><button className="row-action" onClick={() => speechRef.current?.speak({ word: 'way', wordId: 'way', studyWordIndex: dictionary.words.findIndex(entry => entry.id === 'way'), dictionaryVersion: dictionary.manifest.version, accent: state.settings.accent, voiceURI: state.settings.voiceURI, rate: state.settings.rate })}><Volume2 size={18} />试听当前声音</button><span className="sd">{audio.status === 'speaking' ? '播放中' : audio.status === 'unavailable' || audio.status === 'error' ? '暂无可用发音' : ''}</span></div></div>
     <div className="set-label">数据与备份</div><div className="set-group"><div className="set-row"><div><div className="sl">本机进度</div><div className="sd">没有云同步，建议定期导出备份</div></div><span className="chip good">已保存</span></div><div className="set-row"><button className="row-action" onClick={backup}><Download size={18} />导出完整备份</button><button className="row-action" onClick={() => fileRef.current?.click()}><Upload size={18} />恢复备份</button></div><div className="set-row"><button className="row-action" onClick={() => { try { setTextBackup({ text: exportBackup(state, dictionary.words, dictionary.manifest.version) }); } catch (e) { setError(friendlyError(e)); } }}>文本备份</button><button className="row-action" onClick={() => setTextBackup({ text: null })}>粘贴备份恢复</button></div><div className="set-row"><button className="row-action" onClick={() => { if (!navigator.storage?.persist) { setToast('当前浏览器不支持持久存储保护，请定期导出备份'); return; } void navigator.storage.persist().then(granted => setToast(granted ? '已获得持久存储保护，仍建议定期备份' : '浏览器未授予持久存储，请定期导出备份')).catch(e => setError(friendlyError(e))); }}><ShieldCheck size={18} />申请持久存储保护</button></div><div className="set-row"><button className="row-action danger" onClick={() => setDialog({ title: '重置学习进度', content: <p className="help-text">这会清除本机的两种学习进度、跳过记录和设置，已下载的词库会保留。请先导出备份。</p>, actionText: '确认重置进度', action: async () => { if (await commit(s => ({ ...createInitialState(s.dictionaryVersion, Date.now()), revision: s.revision + 1 }))) { setDialog(null); setPage('home'); setToast('学习进度已重置'); } } })}><RotateCcw size={18} />重置进度</button></div></div>
     <div className="set-label">完整离线词典</div><div className="set-group"><div className="set-row vertical"><div className="sl">{dictionary.manifest.total.toLocaleString()} 个词条</div><p className="sd">学习包已就绪，共 {dictionary.words.length.toLocaleString()} 词。完整词典按分片下载，基础词仍保留，可查阅。中断后可以继续。</p>{downloadProgress && <><progress className="progress-download" max={downloadProgress.total} value={downloadProgress.completed} /><p className="sd">已下载 {downloadProgress.completed} / {downloadProgress.total} 个分片</p></>}<button className="row-action" onClick={downloading ? () => abortRef.current?.abort() : () => void downloadDictionary()}>{downloading ? <Pause size={18} /> : <Download size={18} />}{downloading ? '暂停下载' : '下载 / 继续下载完整词典'}</button></div></div>

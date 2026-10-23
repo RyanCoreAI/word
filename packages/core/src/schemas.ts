@@ -28,6 +28,7 @@ export const settingsSchema = z.object({
   accent: z.enum(['en-US', 'en-GB']), voiceURI: z.string().max(2_000),
   rate: z.number().min(0.5).max(1.5), autoSpeak: z.boolean(),
   skipHintSeen: z.boolean().default(false),
+  haptics: z.boolean().default(true), soundEffects: z.boolean().default(true),
 }).strict();
 
 export const wordProgressSchema = z.object({

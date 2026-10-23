@@ -11,6 +11,32 @@ await mkdir(output, { recursive: true });
 const report = { startedAt: new Date().toISOString(), url, device: 'Pixel 7 Chrome emulation; not a physical Android device', checks: [], pageErrors: [], audioRequests: [] };
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ ...devices['Pixel 7'], timezoneId: 'America/Tijuana', serviceWorkers: 'allow' });
+// Observe real browser API calls without replacing their results or producing
+// fake sound/vibration success. Hardware vibration and audible quality are not
+// established by these records.
+await context.addInitScript(() => {
+  globalThis.__feedback = { vibrationSupported: typeof navigator.vibrate === 'function', vibrations: [], contexts: 0, sourcesStarted: 0, sourcesEnded: 0, states: [] };
+  if (typeof navigator.vibrate === 'function') {
+    const vibrate = navigator.vibrate.bind(navigator);
+    navigator.vibrate = pattern => { globalThis.__feedback.vibrations.push(pattern); return vibrate(pattern); };
+  }
+  if (typeof AudioContext !== 'undefined') window.AudioContext = new Proxy(AudioContext, {
+    construct(Target, args) {
+      const audio = Reflect.construct(Target, args);
+      globalThis.__feedback.contexts++;
+      globalThis.__feedback.states.push(audio.state);
+      audio.addEventListener('statechange', () => globalThis.__feedback.states.push(audio.state));
+      const create = audio.createBufferSource.bind(audio);
+      audio.createBufferSource = () => {
+        const source = create(); const start = source.start.bind(source);
+        source.start = (...values) => { start(...values); globalThis.__feedback.sourcesStarted++; };
+        source.addEventListener('ended', () => globalThis.__feedback.sourcesEnded++);
+        return source;
+      };
+      return audio;
+    },
+  });
+});
 const page = await context.newPage();
 page.setDefaultTimeout(25_000);
 page.on('pageerror', error => report.pageErrors.push(error.message));
@@ -66,6 +92,9 @@ try {
   await waitState(value => value.settings.groupSize === 10 && !value.settings.autoSpeak);
   await nav('学习');
   await page.getByRole('button', { name: /^看词记忆/ }).click();
+  const initialFeedback = await page.evaluate(() => globalThis.__feedback);
+  assert.equal(initialFeedback.contexts, 0, 'Start must not initialize or download sound effects');
+  if (initialFeedback.vibrationSupported) assert.deepEqual(initialFeedback.vibrations, [12]);
   first = (await state()).modes.look.session.items[0];
   await check('unknown reveals immediately and first known previews meaning once before advancing', async () => {
     await page.getByRole('button', { name: '不认识', exact: true }).click();
@@ -150,10 +179,16 @@ try {
     assert.equal(geometry.independent, true);
     assert.ok(geometry.gap >= 8);
     assert.equal(geometry.height, 48);
+    if (await page.locator('.toast-message').count()) {
+      const toast = await page.locator('.toast-message').boundingBox();
+      const actions = await page.locator('.actions').boundingBox();
+      assert.ok(toast.y + toast.height <= actions.y, 'Status message must not cover answer controls');
+    }
     await shot('06-android-independent-slash');
     await page.locator('.actions').screenshot({ path: path.join(output, 'independent-slash-actions.png') });
     await slash.click();
     const skipped = await waitState(value => value.skipped.includes(id));
+    await page.waitForFunction(() => globalThis.__feedback.sourcesEnded > 0);
     assert.deepEqual(skipped.dailyActivity, before.dailyActivity);
     assert.deepEqual(skipped.modes.look.progress, before.modes.look.progress);
     assert.equal(skipped.settings.skipHintSeen, true);
@@ -172,6 +207,32 @@ try {
     await waitState(value => !value.skipped.includes(id));
     await home();
     return { firstHelp: true, subsequentHelp: false, instantUndo: true, noAnswerOrCalendarCount: true, geometry };
+  });
+  await check('real local feedback runs after slash and optional switches persist', async () => {
+    const played = await page.evaluate(() => globalThis.__feedback);
+    assert.equal(played.contexts, 1);
+    assert.ok(played.sourcesStarted >= 2);
+    assert.ok(played.sourcesEnded >= 1);
+    assert.ok(played.states.includes('running'));
+    await nav('设置');
+    await page.getByRole('switch', { name: '开始学习震动', exact: true }).click();
+    await page.getByRole('switch', { name: '斩词音效', exact: true }).click();
+    await waitState(value => !value.settings.haptics && !value.settings.soundEffects);
+    await nav('学习');
+    const before = await page.evaluate(() => globalThis.__feedback);
+    await page.getByRole('button', { name: /^看词记忆/ }).click();
+    await page.waitForTimeout(350); // A new action after the preceding slash guard.
+    const id = (await state()).modes.look.session.items[0];
+    await page.getByRole('button', { name: '斩，长期跳过当前单词', exact: true }).click();
+    await waitState(value => value.skipped.includes(id));
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => globalThis.__feedback);
+    assert.equal(after.sourcesStarted, before.sourcesStarted);
+    assert.deepEqual(after.vibrations, before.vibrations);
+    await page.getByRole('button', { name: '撤销斩', exact: true }).click();
+    await waitState(value => !value.skipped.includes(id));
+    await home();
+    return { actualWebAudio: played, disabledEffectsDoNotInvokeAPIs: true, hardwareVibrationAndAudibleQualityVerified: false };
   });
   await check('Android viewport fills screen and resized keyboard layout stays usable', async () => {
     assert.equal(await page.locator('.app-screen').evaluate(element => element.getBoundingClientRect().width), devices['Pixel 7'].viewport.width);

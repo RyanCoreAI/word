@@ -229,6 +229,19 @@ describe('undo and skipping', () => {
 });
 
 describe('external state validation', () => {
+  it('defaults legacy feedback settings to enabled and persists explicit opt-outs', () => {
+    const state = respond(initial(), 'unknown');
+    const legacy = JSON.parse(JSON.stringify(state)) as { settings: Record<string, unknown> };
+    delete legacy.settings.haptics;
+    delete legacy.settings.soundEffects;
+    const restored = parseAppState(legacy, words, VERSION);
+    expect(restored.settings).toMatchObject({ haptics: true, soundEffects: true });
+    const disabled = validated(updateSettings(restored, { haptics: false, soundEffects: false }, time++));
+    expect(disabled.settings).toMatchObject({ haptics: false, soundEffects: false });
+    expect(disabled.modes).toEqual(state.modes);
+    expect(restored.settings).toMatchObject({ haptics: true, soundEffects: true });
+  });
+
   it('defaults missing legacy schema v1 skip guidance to unseen without changing progress', () => {
     const state = respond(initial(), 'unknown');
     const legacy = JSON.parse(JSON.stringify(state)) as { settings: Record<string, unknown> };
