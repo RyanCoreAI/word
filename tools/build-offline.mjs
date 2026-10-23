@@ -5,7 +5,7 @@ import path from 'node:path';
 const dist = path.resolve('dist');
 // The current app uses device voices only. Preserve historical audio sources in
 // the workspace, but never copy their generated packs into a new deployment.
-for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', 'phrases', 'asr']) {
+for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', '_headers', 'phrases', 'asr']) {
   await cp(path.resolve('apps/web/public', entry), path.join(dist, entry), { recursive: true });
 }
 await mkdir(path.join(dist, 'licenses'), { recursive: true });
@@ -17,7 +17,7 @@ async function visit(folder, prefix = '') {
   for (const entry of await readdir(folder, { withFileTypes: true })) {
     const relative = prefix + entry.name;
     if (entry.isDirectory()) { if (!['data', 'audio', 'phrases', 'asr'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
-    else if (!['sw.js', 'CNAME', '.nojekyll'].includes(entry.name)) files.push(relative);
+    else if (!['sw.js', 'CNAME', '.nojekyll', '_headers'].includes(entry.name)) files.push(relative);
   }
 }
 await visit(dist);
@@ -75,6 +75,7 @@ for (const file of files.sort()) hash.update(await readFile(path.join(dist, file
 hash.update(manifest.version);
 hash.update(phraseManifest.version);
 hash.update(asrManifest.version);
+hash.update(await readFile(path.join(dist, '_headers')));
 // Worker logic changes must get a fresh cache namespace even if UI assets do not.
 hash.update(await readFile(new URL(import.meta.url)));
 const version = hash.digest('hex').slice(0, 16);

@@ -1,0 +1,6 @@
+# Keep the document unchanged by the hosting proxy, including analytics injection.
+/
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate, no-transform

@@ -67,4 +67,6 @@ preview 启动后，`node tools/experience-smoke.mjs` 检查安卓 Chrome 仿真
 
 `wrangler.jsonc` 仅配置独立项目 `yanxai-word` 与子域 `word.yanxai.com`。使用现有 Wrangler OAuth 登录运行 `npm run deploy`；Cloudflare Custom Domain 自动管理本子域的 DNS 和证书，不更改根站及其它项目。CLI 版本固定为 4.151.3，不将授权令牌提交到 Git。
 
+本项目 `_headers` 只为应用文档添加 `Cache-Control: no-transform`，按 [Cloudflare 官方说明](https://developers.cloudflare.com/web-analytics/faq/) 阻止代理自动插入统计脚本；不修改全域或其它站点的设置。`node tools/hosting-privacy-smoke.mjs` 用实际浏览器导航验证响应头、HTML 字节和零第三方/统计请求，避免仅用非浏览器 GET 漏掉条件注入。
+
 用户进度及备份不要提交到仓库。清除网站数据会删除本机进度，请定期导出备份。
