@@ -104,6 +104,58 @@ export interface YesterdayReviewCounts {
   available: number;
 }
 
+export interface StudyPlanDay {
+  newTarget: number;
+  newWordIds: string[];
+  reviewWordIds: string[];
+  reviewedWordIds: string[];
+  checkedInAt?: number;
+  checkedInTargets?: { newWords: number; reviewWordIds: string[] };
+  celebratedAt?: number;
+}
+
+export interface StudyPlan {
+  deck: Deck;
+  mode: Mode;
+  skipBasic: boolean;
+  createdOn: string;
+  startedOn: string;
+  deadline: string;
+  updatedAt: number;
+  scopeIds: string[];
+  days: Record<string, StudyPlanDay>;
+}
+
+export interface StudyPlanAnswerChange {
+  key: string;
+  date: string;
+  newAdded: boolean;
+  reviewAdded: boolean;
+}
+
+export interface StudyPlanSummary {
+  plan: StudyPlan;
+  day: StudyPlanDay;
+  dayRecorded: boolean;
+  totalDays: number;
+  remainingDays: number;
+  overdue: boolean;
+  totalWords: number;
+  encounteredWords: number;
+  remainingNewWords: number;
+  newTarget: number;
+  newCompleted: number;
+  reviewTarget: number;
+  reviewCompleted: number;
+  pendingNew: number;
+  pendingReview: number;
+  remainingToday: number;
+  canCheckIn: boolean;
+  checkedIn: boolean;
+  hasActivity: boolean;
+  celebratedAt?: number;
+}
+
 // A bounded journal of deltas, never recursive copies of AppState.
 export interface UndoEntry {
   mode: Mode;
@@ -121,6 +173,7 @@ export interface UndoEntry {
   studyTrailId?: number;
   evictedStudyTrailEntry?: StudyTrailEntry;
   dailyReviewChange?: { date: string; previous: DailyReviewEntry | null };
+  planChanges?: StudyPlanAnswerChange[];
 }
 
 export interface AppState {
@@ -135,6 +188,7 @@ export interface AppState {
   dailyActivity: DailyActivity;
   studyTrail: StudyTrailEntry[];
   dailyReview: DailyReview;
+  studyPlans: Record<string, StudyPlan>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

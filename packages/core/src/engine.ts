@@ -3,6 +3,7 @@ import { settingsSchema } from './schemas';
 import { cloneDailyWordActivity, getLocalDateKey, isLocalDateKey } from './activity';
 import { recordStudyTrail, undoStudyTrail } from './navigation';
 import { completeDailyReview, getYesterdayReviewWordIds, reserveDailyReview, rewindDailyReview } from './daily-review';
+import { reconcileStudyPlanCheckIns, recordStudyPlanAnswer, rewindStudyPlans } from './study-plan';
 import type { AppState, AnswerResult, Mode, Settings, StudySession, UndoEntry, Word, WordProgress } from './types';
 
 const own = <T>(record: Record<string, T>, key: string): T | undefined =>
@@ -26,7 +27,7 @@ export function createInitialState(dictionaryVersion: string, now: number): AppS
       look: { progress: {}, session: null, groupNumber: 0 },
       listen: { progress: {}, session: null, groupNumber: 0 },
     },
-    skipped: [], history: [], dailyActivity: {}, studyTrail: [], dailyReview: {},
+    skipped: [], history: [], dailyActivity: {}, studyTrail: [], dailyReview: {}, studyPlans: {},
   };
 }
 
@@ -155,16 +156,19 @@ export function answer(state: AppState, mode: Mode, result: AnswerResult, expect
   activity[mode][result] += 1;
   const trail = recordStudyTrail(state, mode, result, id, session, now);
   const dailyReview = completeDailyReview(state, mode, id, session.groupNumber, activityDate);
+  const plans = recordStudyPlanAnswer(state, mode, id, activityDate, !previous);
   return touch({
     ...state,
     modes: { ...state.modes, [mode]: { ...modeState, progress: { ...modeState.progress, [id]: progress }, session: nextSession } },
     dailyActivity: { ...state.dailyActivity, [activityDate]: { ...day, [id]: activity } },
     studyTrail: trail.studyTrail,
     dailyReview: dailyReview.dailyReview,
+    studyPlans: plans.studyPlans,
     history: [...state.history, {
       ...journal(state, mode, result, id), ...trail.undo, activityDate,
       previousDailyActivity: previousDailyActivity ? cloneDailyWordActivity(previousDailyActivity) : null,
       ...(dailyReview.change ? { dailyReviewChange: dailyReview.change } : {}),
+      ...(plans.changes.length ? { planChanges: plans.changes } : {}),
     }].slice(-20),
   }, now);
 }
@@ -222,7 +226,7 @@ export function undo(state: AppState, now: number): AppState {
     if (Object.keys(day).length) dailyActivity[entry.activityDate] = day;
     else delete dailyActivity[entry.activityDate];
   }
-  return touch({
+  const restored: AppState = {
     ...state,
     dailyActivity,
     dailyReview: rewindDailyReview(state.dailyReview, entry),
@@ -234,13 +238,15 @@ export function undo(state: AppState, now: number): AppState {
     },
     skipped: entry.wasSkipped ? [...new Set([...state.skipped, entry.wordId])] : state.skipped.filter(id => id !== entry.wordId),
     history: state.history.slice(0, -1),
-  }, now);
+  };
+  return touch({ ...restored, studyPlans: rewindStudyPlans(restored, entry) }, now);
 }
 
 export function restoreSkipped(state: AppState, id: string, now: number): AppState {
   if (!state.skipped.includes(id)) return state;
   // Manual queue edits form an undo boundary; old snapshots must not revive exclusions.
-  return touch({ ...state, skipped: state.skipped.filter(value => value !== id), history: [] }, now);
+  const restored = { ...state, skipped: state.skipped.filter(value => value !== id), history: [] };
+  return touch({ ...restored, studyPlans: reconcileStudyPlanCheckIns(restored) }, now);
 }
 
 export function updateSettings(state: AppState, patch: Partial<Settings>, now: number): AppState {

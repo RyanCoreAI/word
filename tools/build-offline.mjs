@@ -1,15 +1,78 @@
 import { readdir, readFile, writeFile, stat, mkdir, cp } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { crc32, inflateSync } from 'node:zlib';
 import path from 'node:path';
+
+const sceneNames = Array.from({ length: 20 }, (_, index) => `${String(index + 1).padStart(2, '0')}.png`);
+function verifyScenePng(bytes, filename) {
+  const fail = detail => { throw new Error(`Check-in PNG integrity failure (${filename}): ${detail}`); };
+  if (bytes.length < 45 || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) fail('invalid signature');
+  let offset = 8; let width = 0; let height = 0; let channels = 0; let ended = false; let idatEnded = false;
+  const imageParts = [];
+  while (offset < bytes.length) {
+    if (offset + 12 > bytes.length) fail('truncated chunk');
+    const length = bytes.readUInt32BE(offset); const end = offset + length + 12;
+    if (end > bytes.length) fail('chunk length exceeds file');
+    const type = bytes.toString('ascii', offset + 4, offset + 8);
+    if (!/^[A-Za-z]{4}$/.test(type)) fail('invalid chunk type');
+    if (crc32(bytes.subarray(offset + 4, end - 4)) !== bytes.readUInt32BE(end - 4)) fail(`${type} CRC mismatch`);
+    if (offset === 8 && type !== 'IHDR') fail('IHDR must be the first chunk');
+    const data = bytes.subarray(offset + 8, end - 4);
+    if (type === 'IHDR') {
+      if (width || length !== 13) fail('invalid or duplicate IHDR');
+      width = data.readUInt32BE(0); height = data.readUInt32BE(4);
+      if (width < 1080 || height < 800) fail('scene must be at least 1080 by 800 pixels');
+      // These static scene assets deliberately use ordinary RGB/RGBA PNGs.
+      if (data[8] !== 8 || ![2, 6].includes(data[9]) || data[10] !== 0 || data[11] !== 0 || data[12] !== 0) fail('expected a non-interlaced 8-bit RGB/RGBA PNG');
+      channels = data[9] === 2 ? 3 : 4;
+    } else if (type === 'IDAT') {
+      if (idatEnded) fail('non-contiguous image data');
+      imageParts.push(data);
+    } else if (type === 'IEND') {
+      if (length || end !== bytes.length) fail('invalid IEND or trailing data');
+      ended = true; offset = end; break;
+    } else {
+      if (imageParts.length) idatEnded = true;
+      if (type === 'PLTE' && (length === 0 || length > 768 || length % 3)) fail('invalid palette');
+      if (type !== 'PLTE' && type[0] === type[0].toUpperCase()) fail(`unsupported critical chunk ${type}`);
+    }
+    offset = end;
+  }
+  if (!ended || !imageParts.length || !width) fail('missing image data or end marker');
+  const rowBytes = width * channels + 1; const expected = rowBytes * height;
+  if (!Number.isSafeInteger(expected) || expected > 128 * 1024 * 1024) fail('decoded image exceeds the build memory limit');
+  let decoded;
+  try { decoded = inflateSync(Buffer.concat(imageParts), { maxOutputLength: expected + 1 }); } catch { fail('invalid compressed image data'); }
+  if (decoded.length !== expected) fail('decoded pixel data length mismatch');
+  for (let row = 0; row < height; row++) if (decoded[row * rowBytes] > 4) fail('invalid scanline filter');
+  return { file: filename, width, height, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
+}
+async function verifyCheckInScenes(folder) {
+  const entries = await readdir(folder, { withFileTypes: true });
+  const names = entries.map(entry => entry.name).sort();
+  if (entries.some(entry => !entry.isFile()) || names.length !== sceneNames.length || names.some((name, index) => name !== sceneNames[index])) throw new Error('Check-in scenes must contain exactly 01.png through 20.png.');
+  const scenes = [];
+  for (const name of sceneNames) scenes.push(verifyScenePng(await readFile(path.join(folder, name)), name));
+  if (new Set(scenes.map(scene => scene.sha256)).size !== sceneNames.length) throw new Error('Check-in scenes must have 20 distinct file hashes.');
+  return scenes;
+}
+
+// Read-only source validation does not touch dist while browser QA is running.
+if (process.argv.includes('--check-scenes-only')) {
+  const scenes = await verifyCheckInScenes(path.resolve('apps/web/public/images/check-in'));
+  console.log(JSON.stringify({ scenes: scenes.length, uniqueHashes: scenes.length, minWidth: Math.min(...scenes.map(scene => scene.width)), minHeight: Math.min(...scenes.map(scene => scene.height)), totalBytes: scenes.reduce((sum, scene) => sum + scene.bytes, 0) }));
+  process.exit(0);
+}
 
 const dist = path.resolve('dist');
 // Historical audio and lexical packs stay in the workspace only.
-for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', '_headers', 'asr']) {
+for (const entry of ['data', 'icons', 'images', 'licenses', 'manifest.webmanifest', '_headers', 'asr']) {
   await cp(path.resolve('apps/web/public', entry), path.join(dist, entry), { recursive: true });
 }
 if ((await readdir(dist)).some(entry => ['phrases', 'audio'].includes(entry))) throw new Error('Retired lexical/audio packs must not be deployed.');
+const checkInScenes = await verifyCheckInScenes(path.join(dist, 'images/check-in'));
 await mkdir(path.join(dist, 'licenses'), { recursive: true });
-for (const [pkg, filename] of [['@fontsource/inter', 'Inter-OFL.txt'], ['@fontsource/noto-sans-sc', 'Noto-Sans-SC-OFL.txt'], ['@fontsource/source-serif-4', 'Source-Serif-4-OFL.txt'], ['lucide-react', 'Lucide-ISC.txt']]) {
+for (const [pkg, filename] of [['@fontsource/inter', 'Inter-OFL.txt'], ['@fontsource/noto-sans-sc', 'Noto-Sans-SC-OFL.txt'], ['@fontsource/source-serif-4', 'Source-Serif-4-OFL.txt'], ['lucide-react', 'Lucide-ISC.txt'], ['canvas-confetti', 'Canvas-Confetti-ISC.txt'], ['qrcode', 'QRCode-MIT.txt']]) {
   await writeFile(path.join(dist, 'licenses', filename), await readFile(path.resolve('node_modules', pkg, 'LICENSE')));
 }
 const files = [];
@@ -65,7 +128,8 @@ const SHELL=${JSON.stringify(files)};
 // Avoid downloading every CJK font subset during installation.
 // Requested fonts are cached below. The page also reports fonts already loaded
 // before first service-worker control, so the visible typography remains offline.
-const PRECACHE=SHELL.filter(path=>!(/\\.woff2?$/.test(path)));
+// Full-resolution scenery is fetched and cached only when selected for sharing.
+const PRECACHE=SHELL.filter(path=>!path.startsWith('images/')&&!(/\\.woff2?$/.test(path)));
 function navigationResponse(response){
  if(!response?.redirected)return response;
  const headers=new Headers(response.headers);headers.delete('content-encoding');headers.delete('content-length');
@@ -120,5 +184,6 @@ await writeFile(path.join(dist, '.nojekyll'), '');
 console.log(`Verified ${manifest.total} dictionary entries; generated offline shell ${version} (${files.length} assets).`);
 console.log('Pronunciation uses device-local voices only; no hosted audio is bundled.');
 console.log('Reviewed collocations are bundled for offline use; historical lexical packs are excluded.');
+console.log(`Verified ${checkInScenes.length} distinct check-in PNGs (minimum 1080x800); requested scenes are cached on demand, never precached.`);
 console.log(`Verified local ASR ${asrManifest.version} (${asrManifest.totalBytes} bytes); excluded from shell precache.`);
 console.log(`Service worker: ${(await stat(path.join(dist, 'sw.js'))).size} bytes. Dictionary is downloaded only after user action.`);

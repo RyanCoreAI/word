@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 
-export function Modal({ title, children, close, sheet = false }: { title: string; children: ReactNode; close: () => void; sheet?: boolean }) {
+export function Modal({ title, children, close, sheet = false, fullScreen = false, headerAction }: { title: string; children: ReactNode; close: () => void; sheet?: boolean; fullScreen?: boolean; headerAction?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement;
@@ -18,5 +18,5 @@ export function Modal({ title, children, close, sheet = false }: { title: string
     document.addEventListener('keydown', handler);
     return () => { document.removeEventListener('keydown', handler); if (previous instanceof HTMLElement) previous.focus(); };
   }, [close]);
-  return <div className={`dialog-backdrop ${sheet ? 'sheet-backdrop' : ''}`} onPointerDown={event => { if (sheet && event.target === event.currentTarget) close(); }}><div className={`dialog ${sheet ? 'dialog-sheet' : ''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}>{sheet && <div className="grab" aria-hidden="true" />}<div className="dialog-head"><h2 className={sheet ? 'sr-only' : undefined}>{title}</h2><button className="icon-btn" aria-label="关闭弹窗" onClick={close}><X /></button></div>{children}</div></div>;
+  return <div className={`dialog-backdrop ${sheet ? 'sheet-backdrop' : ''} ${fullScreen ? 'fullscreen-backdrop' : ''}`} onPointerDown={event => { if (sheet && event.target === event.currentTarget) close(); }}><div className={`dialog ${sheet ? 'dialog-sheet' : ''} ${fullScreen ? 'dialog-fullscreen' : ''}`} ref={ref} role="dialog" aria-modal="true" aria-label={title}>{sheet && <div className="grab" aria-hidden="true" />}<div className="dialog-head">{fullScreen && <button className="icon-btn" aria-label="关闭弹窗" onClick={close}><ChevronLeft /></button>}<h2 className={sheet ? 'sr-only' : undefined}>{title}</h2>{fullScreen ? <div className="dialog-header-action">{headerAction}</div> : <button className="icon-btn" aria-label="关闭弹窗" onClick={close}><X /></button>}</div>{children}</div></div>;
 }

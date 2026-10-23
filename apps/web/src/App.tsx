@@ -1,6 +1,6 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { ArrowRight, Check, Download, HardDrive, Pause, RotateCcw, ShieldCheck, Upload, Volume2 } from 'lucide-react';
-import { answer, createInitialState, deferWord, ensureSession, getCurrentToken, getCurrentWord, getLocalDateKey, getYesterdayReviewSummary, getStudyHistoryEntry, getStudyTrail, moveStudyHistoryOffset, nextWord, restartWord, restoreSkipped, skipWord, undo, updateSettings } from '../../../packages/core/src';
+import { answer, checkInStudyPlan, createInitialState, ensureStudyPlanDay, deferWord, ensureSession, getCurrentToken, getCurrentWord, getLocalDateKey, getYesterdayReviewSummary, getStudyHistoryEntry, getStudyTrail, markStudyPlanCelebrated, moveStudyHistoryOffset, nextWord, saveStudyPlan, restartWord, restoreSkipped, skipWord, undo, updateSettings } from '../../../packages/core/src';
 import type { AppState, Deck, Mode, Settings, Word } from '../../../packages/core/src';
 import { openWordDatabase, exportBackup, readBackupFile, type WordDatabase } from './lib/storage';
 import { readCachedStudy, loadStudyDictionary, downloadAll, getDownloadProgress, searchDictionary, type DictionaryManifest, type DownloadProgress } from './lib/dictionary';
@@ -13,8 +13,13 @@ import { PhraseSection } from './PhraseSection';
 import { FittedWord } from './FittedWord';
 import { InstallHelp } from './InstallHelp';
 import { Modal } from './Modal';
+import { StudyPlanCard, StudyPlanEditor, studyPlanBookName } from './StudyPlan';
+import type { CheckInShareData } from './CheckInShare';
+import { getStudyPlanSummary } from '../../../packages/core/src';
 
 const RetellPage = lazy(() => import('./RetellPage'));
+type ShareViewType = typeof import('./CheckInShare')['default'];
+const localToday = () => { const now = Date.now(); return getLocalDateKey(now, new Date(now).getTimezoneOffset()); };
 type Page = 'home' | 'study' | 'retell' | 'words' | 'settings';
 type Dictionary = { manifest: DictionaryManifest; words: Word[] };
 type Dialog = { title: string; content: ReactNode; action?: () => Promise<void>; actionText?: string };
@@ -79,6 +84,12 @@ export default function App() {
   const [knownPreview, setKnownPreview] = useState<{ state: AppState; word: Word; mode: Mode; saved: boolean } | null>(null);
   const [historyOffset, setHistoryOffset] = useState(0);
   const [retellBusy, setRetellBusy] = useState(false);
+  const [today, setToday] = useState(localToday);
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [shareData, setShareData] = useState<CheckInShareData | null>(null);
+  const [shareView, setShareView] = useState<ShareViewType | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [celebration, setCelebration] = useState<{ id: number; View: ComponentType } | null>(null);
   const [audio, setAudio] = useState<SpeechState>(initialAudio);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -100,6 +111,8 @@ export default function App() {
   const closeDetail = useCallback(() => { setDetail(null); speechRef.current?.cancel(); }, []);
   const closeTextBackup = useCallback(() => setTextBackup(null), []);
   const closeCalendar = useCallback(() => setCalendarDay(null), []);
+  const closePlanEditor = useCallback(() => setEditingPlan(false), []);
+  const closeShare = useCallback(() => setShareData(null), []);
   const acceptState = useCallback((next: AppState) => { stateRef.current = next; setState(next); setHistoryOffset(0); }, []);
 
   useEffect(() => {
@@ -213,6 +226,75 @@ export default function App() {
     finally { mutex.current = false; if (mounted.current) setBusy(false); }
   }, [dictionary, acceptState]);
 
+  const planMode = page === 'study' ? mode : progressMode;
+  const planSummary = useMemo(() => state && dictionary ? getStudyPlanSummary(state, dictionary.words, state.settings.deck, planMode, today) : null, [state, dictionary, planMode, today]);
+  const skippedWords = state?.skipped; const selectedDeck = state?.settings.deck; const excludeBasic = state?.settings.skipBasic;
+  const eligibleWords = useMemo(() => {
+    if (!dictionary || !skippedWords || !selectedDeck) return [];
+    const skipped = new Set(skippedWords);
+    return dictionary.words.filter(word => !skipped.has(word.id) && (!excludeBasic || !word.basic) && (selectedDeck === 'all' || word.tags.includes(selectedDeck)));
+  }, [skippedWords, selectedDeck, excludeBasic, dictionary]);
+  const eligiblePlanIds = useMemo(() => new Set(eligibleWords.map(word => word.id)), [eligibleWords]);
+  const remainingPlanNew = state ? eligibleWords.filter(word => !Object.hasOwn(state.modes[planMode].progress, word.id)).length : 0;
+
+  useEffect(() => {
+    const update = () => setToday(localToday());
+    const interval = setInterval(update, 15_000);
+    window.addEventListener('focus', update); document.addEventListener('visibilitychange', update);
+    return () => { clearInterval(interval); window.removeEventListener('focus', update); document.removeEventListener('visibilitychange', update); };
+  }, []);
+  useEffect(() => {
+    if (!dictionary || !state || !planSummary || busy || error || phase !== 'ready') return;
+    if (today !== localToday()) { queueMicrotask(() => { if (mounted.current) setToday(localToday()); }); return; }
+    if (!planSummary.dayRecorded) {
+      if (page !== 'home') return;
+      void commit(value => ensureStudyPlanDay(value, dictionary.words, value.settings.deck, planMode, Date.now(), today));
+      return;
+    }
+    if (page === 'study' && historyOffset > 0) return;
+    if (!planSummary.canCheckIn || !planSummary.hasActivity || planSummary.celebratedAt !== undefined) return;
+    const deck = state.settings.deck;
+    void commit(value => markStudyPlanCelebrated(value, dictionary.words, deck, planMode, Date.now(), today)).then(ok => {
+      if (!ok || !mounted.current) return;
+      const latest = stateRef.current;
+      if (!latest || !getStudyPlanSummary(latest, dictionary.words, deck, planMode, today)?.celebratedAt) return;
+      setToast('今日目标完成，回首页即可打卡，也可以继续学习');
+      if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const receipt = getStudyPlanSummary(latest, dictionary.words, deck, planMode, today)?.celebratedAt;
+      void import('./GoalCelebration').then(module => {
+        const current = stateRef.current;
+        const currentSummary = current ? getStudyPlanSummary(current, dictionary.words, deck, planMode, today) : null;
+        if (mounted.current && !document.hidden && localToday() === today && current?.settings.deck === deck && currentSummary?.canCheckIn && currentSummary.hasActivity && currentSummary.celebratedAt === receipt) setCelebration({ id: Date.now(), View: module.default });
+      }).catch(() => { /* The saved completion and check-in remain available. */ });
+    });
+  }, [planSummary, dictionary, state, planMode, today, busy, error, phase, commit, page, historyOffset]);
+  useEffect(() => { if (!celebration) return; const timer = setTimeout(() => setCelebration(null), 2400); return () => clearTimeout(timer); }, [celebration]);
+
+  const savePlan = useCallback(async (deadline: string) => {
+    if (!dictionary) return false;
+    const date = localToday(); setToday(date);
+    const ok = await commit(value => saveStudyPlan(value, dictionary.words, { deck: value.settings.deck, mode: progressMode, deadline, skipBasic: value.settings.skipBasic }, Date.now(), date));
+    if (ok) setToast('本书学习计划已保存');
+    return ok;
+  }, [dictionary, progressMode, commit]);
+  const checkInAndShare = useCallback(async () => {
+    if (!dictionary || shareLoading) return;
+    const date = localToday(); setToday(date);
+    const ok = await commit(value => checkInStudyPlan(value, dictionary.words, value.settings.deck, progressMode, Date.now(), date));
+    if (!ok || !stateRef.current) return;
+    const saved = getStudyPlanSummary(stateRef.current, dictionary.words, stateRef.current.settings.deck, progressMode, date);
+    if (!saved?.checkedIn) return;
+    setShareLoading(true);
+    try {
+      const module = await import('./CheckInShare');
+      if (mounted.current) {
+        setShareView(() => module.default);
+        setShareData({ dateKey: date, deckName: studyPlanBookName(saved.plan.deck), modeLabel: progressMode === 'look' ? '看词' : '听音', newCount: saved.newCompleted, reviewCount: saved.reviewCompleted });
+      }
+    } catch { setToast('打卡已保存，分享页面暂时无法打开，请联网后重试。'); }
+    finally { if (mounted.current) setShareLoading(false); }
+  }, [dictionary, shareLoading, progressMode, commit]);
+
   const start = useCallback(async (newMode: Mode) => {
     if (!dictionary) return;
     if (await commit(s => { const now = Date.now(); return ensureSession(s, dictionary.words, newMode, now, getLocalDateKey(now, new Date(now).getTimezoneOffset())); })) { if (stateRef.current?.settings.haptics) feedbackRef.current?.vibrateStart(); setKnownPreview(null); setHistoryOffset(0); setMode(newMode); setProgressMode(newMode); setPage('study'); }
@@ -220,7 +302,7 @@ export default function App() {
   const doUndo = useCallback(async () => {
     const last = stateRef.current?.history.at(-1);
     if (!last) return;
-    if (await commit(s => undo(s, Date.now()), last.action !== 'skip')) { setKnownPreview(null); setMode(last.mode); setPage('study'); setToast(last.action === 'skip' ? '已撤销斩，单词已回到学习位置' : '已撤销，计数和学习位置已恢复'); }
+    if (await commit(s => undo(s, Date.now()), last.action !== 'skip')) { setCelebration(null); setKnownPreview(null); setMode(last.mode); setPage('study'); setToast(last.action === 'skip' ? '已撤销斩，单词已回到学习位置' : '已撤销，计数和学习位置已恢复'); }
   }, [commit]);
   const doSkip = useCallback(() => {
     const before = stateRef.current;
@@ -369,6 +451,7 @@ export default function App() {
     {error && <div className="notice error" role="alert">{error}<button onClick={() => void reload()}>重新载入进度</button></div>}
     {page === 'home' && <HomePage state={state} words={dictionary.words} mode={progressMode} onProgressMode={setProgressMode} ringIntro={ringIntro} start={m => void start(m)} onWord={setDetail} goWords={() => setPage('words')}
       install={<InstallButton className="install-button" onHelp={openInstallHelp} />}
+      plan={<StudyPlanCard deck={state.settings.deck} mode={progressMode} summary={planSummary} remainingNewWords={remainingPlanNew} scopeChanged={!!planSummary && planSummary.plan.skipBasic !== state.settings.skipBasic} busy={busy || shareLoading} onDeckChange={deck => changeSetting({ deck })} onEdit={() => { setError(''); setEditingPlan(true); }} onCheckIn={() => void checkInAndShare()} />}
       search={<div className="home-search"><SearchBox value={homeQuery} onChange={value => { setHomeQuery(value); setSearchResult([]); setSearchError(''); setSearching(!!value.trim()); }} placeholder="搜索词典 · 输入英文单词" />{homeQuery.trim() && <div className="panel home-search-results"><div className="search-caption"><span>{searching ? '正在查找…' : '本机词典 · 最多显示 60 词'}</span><button onClick={() => { setHomeQuery(''); setSearching(false); }}>收起</button></div>{searchError ? <p className="empty" role="alert">{searchError}</p> : !searching && <WordList state={state} mode={mode} words={searchResult} onWord={setDetail} empty={downloadProgress?.completed === downloadProgress?.total ? '没有找到匹配的词条。请检查英文拼写。' : '没有找到匹配的词条。可到设置下载完整词典，扩大搜索范围。'} />}</div>}</div>}
       calendar={<><YesterdayReview state={state} mode={progressMode} start={m => void start(m)} /><LearningCalendar state={state} onDay={setCalendarDay} /></>} />}
     {page === 'study' && <StudyPage state={knownPreview?.state ?? state} mode={knownPreview?.mode ?? mode} words={dictionary.words} word={knownPreview?.word ?? historyWord ?? current} historyEntry={historyEntry} historyOffset={historyOffset} historyCount={historyCount} onHistory={navigateHistory} onReturnCurrent={() => setHistoryOffset(0)} onSettingsChange={changeSetting} knownPreview={!!knownPreview} busy={busy || !!knownPreview} canAnswer={canAnswer} audioStatus={audioMessage} audioError={audio.status === 'error' || audio.status === 'unavailable' ? audio.error ?? '当前发音不可用，请重试或选择其他声音。' : ''} speaking={audio.status === 'speaking'} goHome={() => { setKnownPreview(null); setHistoryOffset(0); setPage('home'); }} goSettings={() => { setKnownPreview(null); setPage('settings'); }} speak={speak} onAnswer={doAnswer} onNext={doNext} onUndo={() => void doUndo()} onSkip={doSkip} onPauseWord={() => { void commit(s => deferWord(s, mode, token, Date.now()), true); }} nextGroup={() => void start(mode)} onWord={setDetail} />}
@@ -383,6 +466,9 @@ export default function App() {
     <div className="set-label">使用说明</div><div className="set-group"><div className="set-row vertical"><p className="help-text">手机浏览器菜单中选择“添加到主屏幕”，以后可从桌面打开。首次离线使用前，请联网完成词库下载。</p><p className="help-text">词典来源：ECDICT。中文与词性保留原文；缺失释义不会进入学习包。本机朗读的多读音词，可能与部分释义不同。日历从此版本开始记录，备份包含日历记录。</p><div className="source-links"><a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noreferrer">词典来源</a><a href={new URL(dictionary.manifest.license.file.replace(/^\/+/, ''), document.baseURI).href} target="_blank" rel="noreferrer">词典许可</a></div></div></div><p className="local-note">Word · 言习 / 0.1.0<br />清理浏览器数据会删除本机进度。</p></div>}
     {page !== 'study' && !(page === 'retell' && retellBusy) && <Navigation page={page} go={p => { setPage(p); setError(''); }} />}
     {calendarDay && <Modal title={`${calendarDay} · 学习记录`} close={closeCalendar}><DailyWords state={state} words={dictionary.words} date={calendarDay} onWord={word => { setCalendarDay(null); setDetail(word); }} /></Modal>}
+    {editingPlan && <StudyPlanEditor deck={state.settings.deck} mode={progressMode} summary={planSummary} totalWords={eligibleWords.length} remainingNewWords={remainingPlanNew} completedNewToday={planSummary?.day.newWordIds.filter(id => eligiblePlanIds.has(id)).length ?? 0} today={today} busy={busy} error={error} close={closePlanEditor} onSave={savePlan} />}
+    {shareData && shareView && (() => { const ShareView = shareView; return <ShareView data={shareData} close={closeShare} />; })()}
+    {celebration && (() => { const Celebration = celebration.View; return <Celebration key={celebration.id} />; })()}
     {fileInput}
     {toast && <div className="toast-message" role="status">{toast}</div>}
     {skipNotice && <div className="skip-notice" role="status"><div><strong>{skipNotice.first ? '斩：这个词太简单，今后跳过' : `已斩 · ${skipNotice.word}`}</strong><p>{skipNotice.first ? `「${skipNotice.word}」已加入已跳过，不计入不认识。可随时在生词本恢复。` : '已加入已跳过，不计入不认识。'}</p></div><button disabled={busy} onClick={() => void doUndo()} aria-label="撤销斩">撤销</button></div>}

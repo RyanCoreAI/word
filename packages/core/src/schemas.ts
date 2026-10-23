@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isLocalDateKey } from './activity';
 import { MAX_STUDY_TRAIL } from './navigation';
 import { previousLocalDateKey, rewindDailyReview } from './daily-review';
+import { MAX_STUDY_PLAN_DAYS, MAX_STUDY_PLANS, rewindStudyPlans, studyPlanKey } from './study-plan';
 import type { AppState, StudySession, Word, WordProgress } from './types';
 
 export const MAX_WORDS = 1_000_000;
@@ -21,6 +22,25 @@ const dailyReviewEntrySchema = z.object({ groupNumber: integer.positive(), compl
 const reviewWordsSchema = z.record(idSchema, dailyReviewEntrySchema).refine(value => Object.keys(value).length <= MAX_WORDS, 'Too many daily review words');
 const dailyReviewSchema = z.record(localDateKeySchema, z.object({ look: reviewWordsSchema, listen: reviewWordsSchema }).strict())
   .refine(value => Object.keys(value).length <= 100_000, 'Too many daily review dates');
+const planIdsSchema = z.array(idSchema).max(100_000).refine(ids => new Set(ids).size === ids.length, 'Duplicate study plan words');
+export const studyPlanDaySchema = z.object({
+  newTarget: integer.max(100_000), newWordIds: planIdsSchema, reviewWordIds: planIdsSchema, reviewedWordIds: planIdsSchema,
+  checkedInAt: integer.optional(), celebratedAt: integer.optional(),
+  checkedInTargets: z.object({ newWords: integer.max(100_000), reviewWordIds: planIdsSchema }).strict().optional(),
+}).strict().refine(value => (value.checkedInAt === undefined) === (value.checkedInTargets === undefined), 'Incomplete study plan check-in receipt');
+export const studyPlanSchema = z.object({
+  deck: z.enum(['all', 'cet4', 'cet6', 'ky', 'toefl', 'ielts', 'gre']), mode: z.enum(['look', 'listen']), skipBasic: z.boolean(),
+  createdOn: localDateKeySchema, startedOn: localDateKeySchema, deadline: localDateKeySchema, updatedAt: integer,
+  scopeIds: planIdsSchema,
+  days: z.record(localDateKeySchema, studyPlanDaySchema).refine(value => Object.keys(value).length <= MAX_STUDY_PLAN_DAYS, 'Too many study plan dates'),
+}).strict().refine(value => value.createdOn <= value.startedOn && value.startedOn <= value.deadline, 'Invalid study plan date order')
+  .refine(value => (Date.parse(`${value.deadline}T00:00:00.000Z`) - Date.parse(`${value.startedOn}T00:00:00.000Z`)) / 86_400_000 + 1 <= MAX_STUDY_PLAN_DAYS, 'Study plan span is too long');
+const studyPlansSchema = z.record(z.string().regex(/^(all|cet4|cet6|ky|toefl|ielts|gre):(look|listen)$/), studyPlanSchema)
+  .refine(value => Object.keys(value).length <= MAX_STUDY_PLANS, 'Too many study plans');
+const planAnswerChangeSchema = z.object({
+  key: z.string().regex(/^(all|cet4|cet6|ky|toefl|ielts|gre):(look|listen)$/), date: localDateKeySchema,
+  newAdded: z.boolean(), reviewAdded: z.boolean(),
+}).strict().refine(value => value.newAdded || value.reviewAdded, 'Empty study plan undo delta');
 
 export const wordSchema = z.object({
   id: idSchema, word: z.string().min(1).max(500), translation: z.string().max(100_000),
@@ -79,11 +99,14 @@ export const undoEntrySchema = z.object({
   activityDate: localDateKeySchema.optional(), previousDailyActivity: dailyWordActivitySchema.nullable().optional(),
   studyTrailId: integer.positive().optional(), evictedStudyTrailEntry: studyTrailEntrySchema.optional(),
   dailyReviewChange: z.object({ date: localDateKeySchema, previous: dailyReviewEntrySchema.nullable() }).strict().optional(),
+  planChanges: z.array(planAnswerChangeSchema).min(1).max(MAX_STUDY_PLANS)
+    .refine(value => new Set(value.map(item => item.key)).size === value.length, 'Duplicate study plan undo delta').optional(),
 }).strict().superRefine((value, ctx) => {
   if ((value.activityDate === undefined) !== (value.previousDailyActivity === undefined)) ctx.addIssue({ code: 'custom', message: 'Incomplete calendar undo snapshot' });
   if (value.activityDate !== undefined && value.action !== 'known' && value.action !== 'unknown') ctx.addIssue({ code: 'custom', message: 'Only answers update the calendar' });
   if (value.evictedStudyTrailEntry && (value.studyTrailId === undefined || value.evictedStudyTrailEntry.id >= value.studyTrailId)) ctx.addIssue({ code: 'custom', message: 'Invalid evicted trail snapshot' });
   if (value.dailyReviewChange && (value.action !== 'known' && value.action !== 'unknown' || value.dailyReviewChange.previous && (value.dailyReviewChange.previous.completed || value.dailyReviewChange.previous.groupNumber !== value.previousGroupNumber))) ctx.addIssue({ code: 'custom', message: 'Invalid daily review undo snapshot' });
+  if (value.planChanges && (value.action !== 'known' && value.action !== 'unknown' || value.planChanges.some(item => item.date !== value.activityDate || !item.key.endsWith(`:${value.mode}`) || item.newAdded && value.previousProgress !== null))) ctx.addIssue({ code: 'custom', message: 'Invalid study plan undo delta' });
 });
 
 export const appStateSchema = z.object({
@@ -94,6 +117,7 @@ export const appStateSchema = z.object({
   dailyActivity: dailyActivitySchema.default({}),
   studyTrail: z.array(studyTrailEntrySchema).max(MAX_STUDY_TRAIL).default([]),
   dailyReview: dailyReviewSchema.default({}),
+  studyPlans: studyPlansSchema.default({}),
 }).strict();
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -137,6 +161,49 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
   const skipped = new Set(state.skipped);
   const dailyActivity = { ...state.dailyActivity };
   let dailyReview = state.dailyReview;
+  let studyPlans = state.studyPlans;
+  const wordMap = new Map(words.map(word => [word.id, word]));
+  const checkStudyPlans = (): void => {
+    for (const [key, plan] of Object.entries(studyPlans)) {
+      assert(key === studyPlanKey(plan.deck, plan.mode), '学习计划词书或模式不匹配');
+      const bookWord = (id: string): void => {
+        reference(id);
+        assert(plan.deck === 'all' || wordMap.get(id)!.tags.includes(plan.deck), '学习计划包含其他词书词条');
+      };
+      for (const id of plan.scopeIds) {
+        bookWord(id);
+        assert(!plan.skipBasic || !wordMap.get(id)!.basic, '学习计划基础词范围不匹配');
+      }
+      const firstNewDates = new Map<string, string>();
+      for (const [date, day] of Object.entries(plan.days)) {
+        assert(date >= plan.createdOn, '学习计划记录早于创建日期');
+        const yesterday = previousLocalDateKey(date);
+        for (const id of day.newWordIds) {
+          bookWord(id);
+          assert(!firstNewDates.has(id), '同一新词重复计入学习计划');
+          firstNewDates.set(id, date);
+          const activity = ownActivity(dailyActivity, date, id, plan.mode);
+          assert(activity > 0 && Object.hasOwn(progressByMode[plan.mode], id), '计划新学缺少真实作答');
+        }
+        for (const id of day.reviewWordIds) {
+          bookWord(id);
+          assert((dailyActivity[yesterday]?.[id]?.[plan.mode].unknown ?? 0) > 0, '计划复习缺少昨日错词');
+        }
+        for (const id of day.reviewedWordIds) {
+          bookWord(id);
+          assert(ownActivity(dailyActivity, date, id, plan.mode) > 0, '计划复习完成缺少真实作答');
+        }
+        if (day.checkedInTargets) assert(day.newWordIds.length >= day.checkedInTargets.newWords && day.checkedInTargets.reviewWordIds.every(id => day.reviewedWordIds.includes(id)), '学习计划打卡缺少达标作答');
+      }
+      for (const [date, day] of Object.entries(dailyActivity)) {
+        for (const [id, activity] of Object.entries(day)) {
+          const first = firstNewDates.get(id);
+          if (first && date < first) assert(activity[plan.mode].known + activity[plan.mode].unknown === 0, '已学词被伪装成计划新词');
+        }
+      }
+    }
+  };
+  checkStudyPlans();
   const checkDailyReview = (): void => {
     const assignments = new Set<string>();
     const completions: Record<string, number> = {};
@@ -215,6 +282,12 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
       const marker = dailyReview[entry.dailyReviewChange.date]?.[entry.mode]?.[entry.wordId];
       assert(marker?.completed && marker.groupNumber === entry.previousGroupNumber, '撤销记录缺少次日复习完成标记');
     }
+    for (const change of entry.planChanges ?? []) {
+      const day = studyPlans[change.key]?.days[change.date];
+      assert(day, '撤销记录缺少学习计划日期');
+      if (change.newAdded) assert(day.newWordIds.includes(entry.wordId), '撤销记录缺少计划新学');
+      if (change.reviewAdded) assert(day.reviewedWordIds.includes(entry.wordId), '撤销记录缺少计划复习');
+    }
     dailyReview = rewindDailyReview(dailyReview, entry);
     if (entry.studyTrailId !== undefined) {
       const item = studyTrail.at(-1);
@@ -261,11 +334,22 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
       else delete dailyActivity[entry.activityDate];
     }
     if (!entry.wasSkipped) skipped.delete(entry.wordId);
+    studyPlans = rewindStudyPlans({ ...state, studyPlans, dailyActivity, skipped: [...skipped], modes: {
+      look: { ...state.modes.look, progress: progressByMode.look },
+      listen: { ...state.modes.listen, progress: progressByMode.listen },
+    } }, entry);
   }
   checkActivityTotals();
   checkStudyTrail();
   checkDailyReview();
+  checkStudyPlans();
   return state;
+}
+
+function ownActivity(activity: AppState['dailyActivity'], date: string, id: string, mode: 'look' | 'listen'): number {
+  const day = activity[date];
+  const record = day && Object.hasOwn(day, id) ? day[id]?.[mode] : undefined;
+  return record ? record.known + record.unknown : 0;
 }
 
 export function parseWords(input: unknown): Word[] {
