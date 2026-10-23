@@ -254,9 +254,7 @@ try {
   const studyBytes = Buffer.from(await studyResponse.arrayBuffer());
   assert.equal(studyBytes.length, manifest.study.bytes); assert.equal(sha(studyBytes), manifest.study.sha256);
   words = core.parseWords(JSON.parse(studyBytes.toString('utf8'))); assert.equal(words.length, manifest.study.count);
-  const lexicalResponse = await fetch(new URL('phrases/manifest.json', baseUrl)); assert.equal(lexicalResponse.status, 200);
-  const lexicalManifest = await lexicalResponse.json(); assert.equal(lexicalManifest.dictionaryVersion, manifest.version);
-  report.lexicalVersion = lexicalManifest.version;
+  report.lexicalVersion = 'reviewed-headword-collocations';
   assert.ok(words.some(word => word.id === 'important')); assert.ok(words.some(word => word.id === 'because'));
   longWord = [...words.filter(word => !word.basic && /^[a-z]+$/.test(word.word))].sort((a, b) => b.word.length - a.word.length || a.rank - b.rank)[0]; assert.ok(longWord);
   report.fixture.dictionaryVersion = manifest.version; report.fixture.wordsUsedUnchanged = ['important', 'because', longWord.id]; report.fixture.dictionarySourceSha256 = sha(studyBytes);
@@ -281,7 +279,7 @@ try {
   await check('native touch history browsing cannot answer or move past the live word', async () => {
     const before = await savedState(mobile);
     await touchSwipe(mobile, 'previous'); await wordIs(mobile, 'important'); await inlineReady(mobile);
-    assert.match(await mobile.locator('.history-card .word-sense').innerText(), /significant/);
+    assert.match(await mobile.locator('.history-card .phrase-inline').innerText(), /be important/);
     await screenshot(mobile, '02-mobile-history-important');
     await touchSwipe(mobile, 'previous'); await wordIs(mobile, 'because'); await inlineReady(mobile);
     assert.match(await mobile.locator('.history-card .phrase-inline').innerText(), /because of/);
@@ -314,51 +312,55 @@ try {
     return { permanentSkipActionsInMenu: 0, independentSlashButtons: 1, persisted: { deck: after.settings.deck, groupSize: after.settings.groupSize, rate: after.settings.rate }, currentSessionAndLearningCountsUnchanged: true };
   });
 
-  await check('revealed look card renders real Chinese exact-sense word substitutes inline', async () => {
+  await check('revealed look card renders reviewed writing collocations without old synonyms', async () => {
     await injectFixture(mobile, 'mobile-look-revealed-important', activeFixture(['important','because',longWord.id], 'look', [], true));
     await start(mobile); await wordIs(mobile, 'important'); const before = await savedState(mobile);
     await inlineReady(mobile);
-    assert.match(await mobile.locator('.study-answer .word-sense').innerText(), /重要|意义重大/);
-    assert.match(await mobile.locator('.study-answer .word-sense').innerText(), /significant/);
-    assert.equal(await mobile.locator('.study-answer .phrase-list .phrase-meaning').count(), 0, 'Important has a real selected word sense, not an invented phrase');
+    const inline = mobile.locator('.study-answer .phrase-inline');
+    assert.match(await inline.innerText(), /be important/); assert.match(await inline.innerText(), /重要/);
+    assert.equal(await inline.locator('.word-sense, .phrase-substitutes').count(), 0);
     await screenshot(mobile, '04-mobile-look-inline'); assert.deepEqual(await savedState(mobile), before);
-    return { word: 'important', realWordSubstitute: 'significant', ChineseMeaning: true, missingPhrasesNotInvented: true, dialogOpened: false, noSupplementProgressMutation: true };
+    return { word: 'important', collocation: true, oldWordNetBlocks: 0, noSupplementProgressMutation: true };
   });
 
-  await check('revealed look card also renders real phrase meanings and shared-sense substitutions', async () => {
+  await check('revealed look card renders a reviewed causal phrase and grammatical restriction', async () => {
     await injectFixture(mobile, 'mobile-look-revealed-because', activeFixture(['because','important',longWord.id], 'look', [], true));
     await start(mobile); await wordIs(mobile, 'because'); const before = await savedState(mobile);
     await inlineReady(mobile);
     const inline = mobile.locator('.study-answer .phrase-inline');
-    assert.match(await inline.innerText(), /because of/); assert.match(await inline.innerText(), /due to/); assert.match(await inline.innerText(), /由[於于]/);
+    assert.match(await inline.innerText(), /because of/); assert.match(await inline.innerText(), /因为|由于/);
+    assert.match(await inline.innerText(), /名词/);
+    assert.equal(await inline.locator('.phrase-substitutes').count(), 0);
     await screenshot(mobile, '04b-mobile-look-because-inline'); assert.deepEqual(await savedState(mobile), before);
-    return { word: 'because', phrase: 'because of', substitute: 'due to', ChineseMeaning: true, noSupplementProgressMutation: true };
+    return { word: 'because', phrase: 'because of', ChineseMeaning: true, noAutomaticSynonyms: true, noSupplementProgressMutation: true };
   });
 
-  await check('native vertical reading still scrolls long source-sense notes without changing learning', async () => {
-    await injectFixture(mobile, 'mobile-long-source-sense-reading', activeFixture(['important','because',longWord.id], 'look', [], true));
+  await check('native vertical reading scrolls collocations on a small phone without answering', async () => {
+    await mobile.setViewportSize({ width: 320, height: 568 });
+    await injectFixture(mobile, 'mobile-scrollable-collocations', activeFixture(['important','because',longWord.id], 'look', [], true));
     await start(mobile); await wordIs(mobile, 'important'); await inlineReady(mobile);
     const before = await savedState(mobile);
-    await mobile.locator('.word-sense').getByText('义项与替换限制', { exact: true }).click();
+    await mobile.locator('.phrase-evidence summary').first().click();
     const detail = await touchScrollAnswer(mobile);
     await wordIs(mobile, 'important'); assert.equal(await mobile.locator('.history-card').count(), 0);
     assert.deepEqual(await savedState(mobile), before);
-    await screenshot(mobile, '04c-mobile-scrollable-sense-limits');
+    await screenshot(mobile, '04c-mobile-scrollable-collocations');
+    await mobile.setViewportSize({ width: 390, height: 844 });
     return { ...detail, currentWordUnchanged: true, exactSavedStateUnchanged: true };
   });
 
-  await check('already-revealed listen fixture renders real phrase synonyms without faking speech', async () => {
+  await check('already-revealed listen fixture shows the same reviewed collocations without faking speech', async () => {
     await injectFixture(mobile, 'mobile-listen-already-revealed-because', activeFixture(['because','important',longWord.id], 'listen', [], true));
     await start(mobile, 'listen'); await wordIs(mobile, 'because'); const before = await savedState(mobile);
     await inlineReady(mobile);
     const inline = mobile.locator('.study-answer .phrase-inline');
-    assert.match(await inline.innerText(), /because of/); assert.match(await inline.innerText(), /due to/); assert.match(await inline.innerText(), /由[於于]/);
+    assert.match(await inline.innerText(), /because of/); assert.match(await inline.innerText(), /因为|由于/);
     await screenshot(mobile, '05-mobile-listen-inline'); assert.deepEqual(await savedState(mobile), before);
     await injectFixture(mobile, 'mobile-listen-already-revealed-important', activeFixture(['important','because',longWord.id], 'listen', [], true));
     await start(mobile, 'listen'); await wordIs(mobile, 'important'); const wordBefore = await savedState(mobile); await inlineReady(mobile);
-    assert.match(await mobile.locator('.study-answer .word-sense').innerText(), /significant/);
+    assert.match(await mobile.locator('.study-answer .phrase-inline').innerText(), /be important/);
     await screenshot(mobile, '05b-mobile-listen-important-inline'); assert.deepEqual(await savedState(mobile), wordBefore);
-    return { words: ['because','important'], phrase: 'because of', phraseSubstitute: 'due to', wordSubstitute: 'significant', ChineseMeaning: true, preRevealedValidatedFixtures: true, speechAPIsReplaced: false, audiblePlaybackClaimed: false };
+    return { words: ['because','important'], reviewedCollocations: true, ChineseMeaning: true, preRevealedValidatedFixtures: true, speechAPIsReplaced: false, audiblePlaybackClaimed: false };
   });
 
   await check('yesterday wrong word completed yesterday is prioritized and checked again today', async () => {
@@ -396,7 +398,8 @@ try {
     const desktop = await createPage('desktop');
     await injectFixture(desktop, 'desktop-look-revealed-important', activeFixture(['important','because',longWord.id], 'look', [], true));
     await start(desktop); await wordIs(desktop, 'important'); await inlineReady(desktop);
-    assert.match(await desktop.locator('.word-sense').innerText(), /significant/);
+    assert.match(await desktop.locator('.phrase-inline').innerText(), /be important/);
+    assert.equal(await desktop.locator('.word-sense, .phrase-substitutes').count(), 0);
     assert.equal(await desktop.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await screenshot(desktop, '08-desktop-look-inline');
     await desktop.getByLabel('学习操作', { exact: true }).click(); await screenshot(desktop, '09-desktop-quick-settings');
@@ -404,7 +407,7 @@ try {
   });
 
   assert.deepEqual(report.pageErrors, []);
-  assert.equal(report.phraseRequests.some(request => /\/sources\//.test(new URL(request.url).pathname)), false, 'Normal study must not download raw phrase corpora');
+  assert.equal(report.phraseRequests.length, 0, 'The rejected lexical packs must never be requested');
   report.passed = report.checks.every(result => result.status === 'passed');
   if (!report.passed) process.exitCode = 1;
 } catch (error) {

@@ -1,6 +1,16 @@
 # Claude 原稿高保真核验
 
-## 2026-10-23 当前增量检查
+## 2026-10-23 短语与文章声音纠正（当前）
+
+internal review: passed
+
+按用户最新要求撤掉旧通用词组/WordNet 近义块，改为 33 个精确词条的 39 条编辑搭配；揭晓、回看和详情直接使用相同数据。未核对词不显示占位，旧词组不再发布。beneficial 的 for/to、figure out 已在实际手机/桌面词典详情检查；配色、字体、留白继续复用 Claude tokens。搜索 × 可点区域44×44，输入聚焦改为外框柔和蓝色，清空立即收起结果并保留焦点，支持键盘。
+
+文章合成朗读无法保证用户要求的自然语气，遵照“否则不要这个功能”撤下听音模式/全文播放，保留原文、隐藏、麦克风复述和录音回听。选文用现有图标与轻量“阅读 · 语音复述”说明；无虚假音频占位或新的常驻工具栏。已目视 `outputs/word-corrections/browser/` 与 `retell-local/` 手机/桌面实际截图，标题、正文、主操作无横向溢出；文章按正常纵向滚动。
+
+本地 `npm run lint`、`npm run typecheck`、`npm test`（158项）、`npm run build`、词库与ASR Python测试（16项）通过。`tools/phrases/browser-smoke.mjs` 7项、`tools/new-learning-smoke.mjs` 11项、`tools/retell-smoke.mjs` 9项通过；实际Chrome录音/识别/离线再识别、缓存损坏修复及拒麦克风检查均保留。QA进度为隔离浏览器的明确测试记录，不能当作真实用户历史；Chrome文件麦克风与安卓尺寸模拟不代替真机验收。
+
+## 2026-10-23 前次复述增量（历史记录）
 
 internal review: passed
 

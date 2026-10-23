@@ -102,18 +102,10 @@ h1,h2,h3,p { margin: 0; }
 .phrase-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px 9px; }
 .phrase-title h3 { font-family: var(--serif); font-size: 21px; font-weight: 600; overflow-wrap: anywhere; }
 .phrase-title > span { color: var(--ink-3); font-size: 10px; }
-.phrase-sense { margin-top: 8px; }
 .phrase-meaning { color: var(--ink-2); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
-.phrase-tags { color: var(--ink-3); font-size: 10px; line-height: 1.7; }
-.phrase-substitutes { margin-top: 9px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
-.phrase-subtitle { color: var(--accent-ink); font-size: 10px; margin-bottom: 5px; }
-.phrase-substitute { display: flex; align-items: baseline; gap: 7px; padding: 4px 0; color: var(--accent-ink); }
-.phrase-substitute > div { min-width: 0; }
-.phrase-substitute span { display: block; font-family: var(--serif); font-size: 17px; overflow-wrap: anywhere; }
-.phrase-substitute small { display: block; font-size: 11px; color: var(--ink-2); line-height: 1.7; overflow-wrap: anywhere; }
+.phrase-evidence { margin-top: 6px; color: var(--ink-3); font-size: 10px; }
+.phrase-evidence summary { cursor: pointer; width: fit-content; padding: 4px 0; }
 .phrase-source { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 10px; color: var(--ink-3); }
-.phrase-attribution { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 10px; }
-.phrase-attribution a { color: var(--accent-ink); }
 .hint .hint-link { color: var(--accent-ink); font: inherit; }
 .install-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 12px; border-radius: 999px; font-size: 12px; color: var(--accent-ink); background: var(--accent-soft); }
 .install-button svg { width: 15px; height: 15px; }
@@ -184,6 +176,15 @@ h1,h2,h3,p { margin: 0; }
 .hero h2 { font-size: 24px; font-weight: 750; margin-top: 12px; }
 .search input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--ink); }
 .search input::placeholder { color: var(--ink-3); opacity: 1; }
+.search { position: relative; }
+.search > svg { flex: none; }
+.search input { flex: 1; }
+.search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.search input:focus-visible { outline: none; }
+.search-clear { display: flex; align-items: center; justify-content: center; flex: none; width: 44px; min-height: 44px; margin: -8px -10px -8px 0; color: var(--ink-3); border-radius: 50%; touch-action: manipulation; }
+.search-clear:active { color: var(--accent-ink); background: var(--accent-soft); }
+.search-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
 .seg button { flex: 1; text-align: center; font-size: 13.5px; padding: 7px 0; border-radius: 9px; color: var(--ink-2); font-weight: 550; }
 .seg button.on { background: #fff; color: var(--ink); font-weight: 650; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .sortline { align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -251,19 +252,8 @@ html { overscroll-behavior: none; }
 .study-answer .meaning { min-height: 0; max-height: none; overflow: visible; padding: 12px; gap: 8px; }
 .study-screen .card:has(.study-answer) .word-zone { flex: none; min-height: 130px; padding: 14px 0 10px; }
 .phrase-inline .phrase-heading { min-height: 36px; }
-.phrase-inline .phrase-heading > button { display: inline-flex; align-items: center; gap: 3px; color: var(--accent-ink); }
 .phrase-inline .phrase-item { padding: 9px 0; }
 .phrase-inline .phrase-title h3 { font-size: 19px; }
-.phrase-inline .phrase-substitutes { padding: 8px 10px; margin-top: 6px; }
-.phrase-inline .phrase-substitute { padding: 2px 0; }
-.phrase-inline .phrase-substitute span { font-size: 16px; }
-.phrase-missing { margin-top: 5px; }
-.lexical-group-title { font-size: 11px; color: var(--accent-ink); font-weight: 600; padding-top: 12px; }
-.word-sense .phrase-title h3 { font-family: var(--sans); font-size: 15px; line-height: 1.6; }
-.sense-usage { margin-top: 8px; font-size: 11px; color: var(--ink-3); line-height: 1.7; }
-.sense-usage > summary { cursor: pointer; }
-.sense-usage > p { margin-top: 6px; color: var(--ink-2); }
-.sense-usage small { display: block; margin-top: 5px; }
 .quick-heading { padding: 10px 0; color: var(--ink); font-size: 13px; font-weight: 650; }
 .quick-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 45px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--ink-2); }
 .quick-field small { display: block; color: var(--ink-3); font-size: 10px; }

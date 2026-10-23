@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 const dist = path.resolve('dist');
-// The current app uses device voices only. Preserve historical audio sources in
-// the workspace, but never copy their generated packs into a new deployment.
-for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', '_headers', 'phrases', 'asr']) {
+// Historical audio and lexical packs stay in the workspace only.
+for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', '_headers', 'asr']) {
   await cp(path.resolve('apps/web/public', entry), path.join(dist, entry), { recursive: true });
 }
+if ((await readdir(dist)).some(entry => ['phrases', 'audio'].includes(entry))) throw new Error('Retired lexical/audio packs must not be deployed.');
 await mkdir(path.join(dist, 'licenses'), { recursive: true });
 for (const [pkg, filename] of [['@fontsource/inter', 'Inter-OFL.txt'], ['@fontsource/noto-sans-sc', 'Noto-Sans-SC-OFL.txt'], ['@fontsource/source-serif-4', 'Source-Serif-4-OFL.txt'], ['lucide-react', 'Lucide-ISC.txt']]) {
   await writeFile(path.join(dist, 'licenses', filename), await readFile(path.resolve('node_modules', pkg, 'LICENSE')));
@@ -16,7 +16,7 @@ const files = [];
 async function visit(folder, prefix = '') {
   for (const entry of await readdir(folder, { withFileTypes: true })) {
     const relative = prefix + entry.name;
-    if (entry.isDirectory()) { if (!['data', 'audio', 'phrases', 'asr'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
+    if (entry.isDirectory()) { if (!['data', 'audio', 'asr'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
     else if (!['sw.js', 'CNAME', '.nojekyll', '_headers'].includes(entry.name)) files.push(relative);
   }
 }
@@ -30,30 +30,12 @@ for (const entry of [manifest.study, ...manifest.shards]) {
   const bytes = await readFile(file);
   if (bytes.length !== entry.bytes || createHash('sha256').update(bytes).digest('hex') !== entry.sha256) throw new Error(`Dictionary integrity failure: ${entry.file}`);
 }
-// The builder and browser share one phrase contract. Missing or mismatched
-// source records stop release rather than becoming plausible-looking examples.
+// Validate local ASR assets before publishing. Reviewed collocations are part
+// of the application bundle; the rejected lexical corpus is not deployed.
 const { createServer } = await import('vite');
 const contracts = await createServer({ configFile: false, root: process.cwd(), server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' });
-let phraseManifest;
 let asrManifest;
 try {
-  const phrases = await contracts.ssrLoadModule('/apps/web/src/lib/phrases.ts');
-  const phraseRoot = path.resolve(dist, 'phrases');
-  phraseManifest = phrases.parsePhraseManifest(JSON.parse(await readFile(path.join(phraseRoot, 'manifest.json'), 'utf8')));
-  if (phraseManifest.dictionaryVersion !== manifest.version) throw new Error('Phrase dictionary version differs.');
-  for (const [letter, descriptor] of Object.entries(phraseManifest.shards)) {
-    const filename = path.resolve(phraseRoot, descriptor.file);
-    if (!filename.startsWith(phraseRoot + path.sep)) throw new Error('Phrase path escapes its root.');
-    const bytes = await readFile(filename);
-    if (bytes.length !== descriptor.bytes || createHash('sha256').update(bytes).digest('hex') !== descriptor.sha256) throw new Error(`Phrase integrity failure: ${letter}`);
-    phrases.parsePhraseShard(JSON.parse(bytes.toString('utf8')), phraseManifest, letter);
-  }
-  for (const descriptor of [...phraseManifest.licenses, phraseManifest.attribution, ...phraseManifest.sources.map(source => source.archive)]) {
-    const filename = path.resolve(phraseRoot, descriptor.file);
-    if (!filename.startsWith(phraseRoot + path.sep)) throw new Error('Phrase provenance path escapes its root.');
-    const bytes = await readFile(filename);
-    if (bytes.length !== descriptor.bytes || createHash('sha256').update(bytes).digest('hex') !== descriptor.sha256) throw new Error(`Phrase provenance integrity failure: ${descriptor.file}`);
-  }
   const asr = await contracts.ssrLoadModule('/apps/web/src/lib/retell-asr-assets.ts');
   const asrRoot = path.resolve(dist, 'asr');
   asrManifest = asr.asrManifestSchema.parse(JSON.parse(await readFile(path.join(asrRoot, 'manifest.json'), 'utf8')));
@@ -73,7 +55,6 @@ try {
 const hash = createHash('sha256');
 for (const file of files.sort()) hash.update(await readFile(path.join(dist, file)));
 hash.update(manifest.version);
-hash.update(phraseManifest.version);
 hash.update(asrManifest.version);
 hash.update(await readFile(path.join(dist, '_headers')));
 // Worker logic changes must get a fresh cache namespace even if UI assets do not.
@@ -138,6 +119,6 @@ await writeFile(path.join(dist, 'sw.js'), sw);
 await writeFile(path.join(dist, '.nojekyll'), '');
 console.log(`Verified ${manifest.total} dictionary entries; generated offline shell ${version} (${files.length} assets).`);
 console.log('Pronunciation uses device-local voices only; no hosted audio is bundled.');
-console.log(`Verified phrase supplements ${phraseManifest.version}; sources and shards download only on explicit access.`);
+console.log('Reviewed collocations are bundled for offline use; historical lexical packs are excluded.');
 console.log(`Verified local ASR ${asrManifest.version} (${asrManifest.totalBytes} bytes); excluded from shell precache.`);
 console.log(`Service worker: ${(await stat(path.join(dist, 'sw.js'))).size} bytes. Dictionary is downloaded only after user action.`);

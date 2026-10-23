@@ -1,4 +1,12 @@
-# Source-backed phrases and selected word senses
+# Historical lexical supplement (retired from the product)
+
+On 2026-10-23 the user rejected the quality of token-associated phrases and
+word-sense substitutions. This generator and its source contracts are retained
+only as history; neither its packs nor source archives are deployed or rebuilt
+in the current CI. The product uses explicitly reviewed headword collocations
+in `apps/web/src/data/collocations.ts`; `browser-smoke.mjs` tests that replacement.
+
+## Previous implementation: source-backed phrases and selected word senses
 
 This standard-library-only pipeline builds an optional lexical supplement. It
 reads the existing ECDICT database without modifying the dictionary, study

@@ -23,6 +23,10 @@ page.on('request', request => { const resource = new URL(request.url()); if (res
 const check = async (name, run) => { const detail = await run(); report.checks.push({ name, status: 'passed', detail }); console.log(JSON.stringify({ name, detail })); };
 async function shot(name) { await page.evaluate(() => document.fonts.ready.then(() => true)); await page.screenshot({ path: path.join(output, name + '.png'), animations: 'disabled' }); }
 async function navigate() { await page.getByRole('navigation', { name: '主导航', exact: true }).getByRole('button', { name: '复述', exact: true }).click(); await page.locator('.retell-library').waitFor(); }
+async function noArticleAudio() {
+  for (const name of ['听短文', '听音频', '播放全文', '停止朗读全文']) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0);
+  assert.equal(await page.locator('.retell-playback, .retell-listen-only').count(), 0);
+}
 async function readAttempts() { return page.evaluate(() => new Promise((resolve, reject) => { const request = indexedDB.open('yanxai-retell-v1'); request.onerror = () => reject(request.error?.message); request.onsuccess = () => { const db = request.result; const tx = db.transaction('attempts'); const read = tx.objectStore('attempts').getAll(); read.onsuccess = () => resolve(read.result.map(row => ({ ...row, audioBlob: { size: row.audioBlob.size, type: row.audioBlob.type } }))); tx.oncomplete = () => db.close(); }; })); }
 async function recordAndFinish(offline = false) {
   await page.getByRole('button', { name: '开始语音复述', exact: true }).click();
@@ -48,18 +52,22 @@ try {
   await navigate();
   await check('approved retell navigation and real editorial library load without ASR download', async () => {
     assert.equal(report.asrRequests.length, 0); assert.equal(await page.locator('.retell-article').count(), 4); assert.equal(await page.locator('textarea').count(), 0);
+    await noArticleAudio(); assert.equal(await page.locator('.retell-library-format').innerText(), '阅读 · 语音复述');
     const startBox = await page.getByRole('button', { name: '开始这篇', exact: false }).boundingBox(); assert.ok(startBox.y + startBox.height <= 844, 'Primary start action is visible without scrolling');
     await shot('01-library-mobile'); await page.setViewportSize({ width: 1440, height: 1000 }); await shot('01-library-desktop'); await page.setViewportSize({ width: 390, height: 844 });
-    return { articles: 4, passiveAsrRequests: 0, keyboardRetell: false };
+    return { articles: 4, passiveAsrRequests: 0, keyboardRetell: false, articleAudioRemoved: true };
   });
   await page.getByRole('button', { name: '开始这篇', exact: false }).click();
-  await check('read/listen/hide flow uses real passage and explicit resource preparation', async () => {
+  await check('read/hide flow preserves full paragraphs without article audio and explicitly prepares ASR', async () => {
     assert.equal(await page.locator('.retell-passage p').count(), 3); assert.equal(await page.locator('.retell-reference').count(), 0); await shot('02-reader-mobile');
+    await noArticleAudio();
+    const paragraphs = await page.locator('.retell-passage p').allTextContents();
+    const passageWords = paragraphs.join(' ').trim().split(/\s+/).length;
+    assert.ok(paragraphs.every(text => text.trim() === text && /[.!?]$/.test(text)));
+    assert.ok(passageWords >= 120 && passageWords <= 190);
     const cdp = await context.newCDPSession(page); await cdp.send('DOM.enable'); await cdp.send('CSS.enable'); const document = await cdp.send('DOM.getDocument'); const used = {};
     for (const [label, selector] of [['english', '.retell-passage p'], ['chinese', '.retell-reader h2']]) { const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: document.root.nodeId, selector }); used[label] = (await cdp.send('CSS.getPlatformFontsForNode', { nodeId })).fonts; }
     assert.ok(used.english.some(font => font.isCustomFont && /Source Serif/.test(font.familyName))); assert.ok(used.chinese.some(font => font.isCustomFont && /Noto Sans SC/.test(font.familyName))); report.fonts = { ...used, englishWeight: await page.locator('.retell-passage p').first().evaluate(element => getComputedStyle(element).fontWeight) }; assert.equal(report.fonts.englishWeight, '400'); await cdp.detach();
-    await page.getByRole('button', { name: '听音频', exact: true }).click(); assert.equal(await page.locator('.retell-passage').count(), 0);
-    await page.getByRole('button', { name: '需要时查看原文', exact: true }).click();
     await page.locator('.retell-sources summary').click(); assert.equal(await page.locator('.retell-sources a').count(), 2);
     await page.getByRole('button', { name: '隐藏原文，开始复述', exact: false }).click();
     assert.equal(await page.locator('.retell-passage').count(), 0); assert.equal(await page.locator('textarea').count(), 0);
@@ -67,7 +75,7 @@ try {
     const prepareStartedAt = Date.now(); await page.getByRole('button', { name: '下载并启用', exact: true }).click();
     await page.waitForFunction(() => !document.querySelector('.retell-microphone').disabled, null, { timeout: preparationTimeout });
     assert.ok(report.asrRequests.length > 10); await shot('03-speak-ready');
-    return { originalHidden: true, sameOriginResources: report.asrRequests.length, preparationMilliseconds: Date.now() - prepareStartedAt, manualInput: false };
+    return { paragraphs: paragraphs.length, passageWords, articleAudioRemoved: true, originalHidden: true, sameOriginResources: report.asrRequests.length, preparationMilliseconds: Date.now() - prepareStartedAt, manualInput: false };
   });
   let completed;
   await check('real recording pauses, resumes, transcribes and saves actual audio/text', async () => { completed = await recordAndFinish(); return completed; });
