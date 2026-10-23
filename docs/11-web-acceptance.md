@@ -31,7 +31,7 @@
 
 ## 检查与证据
 
-本轮本地检查：`npm run lint`、`npm run typecheck`、`npm test`（151 项）、三条 Python unittest discover（词典9、短语33、ASR7）、完整 build。额外真实 Chrome 检查：
+本轮本地检查：`npm run lint`、`npm run typecheck`、`npm test`（155 项）、三条 Python unittest discover（词典9、短语33、ASR7）、完整 build。额外真实 Chrome 检查：
 
 - `tools/browser-smoke.mjs`：17 项原学习/撤销/设置/备份/响应布局回归。
 - `tools/experience-smoke.mjs`：10 项圆环/日历/首次认识/触感/斩/离线进度。

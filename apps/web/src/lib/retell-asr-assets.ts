@@ -64,28 +64,68 @@ export class AsrAssetStore {
   async isReady(manifest: AsrManifest): Promise<boolean> { try { for (const asset of manifest.assets) await this.read(manifest, asset.path); return true; } catch { return false; } }
   async download(signal?: AbortSignal, progress?: (value: AsrProgress) => void): Promise<AsrManifest> {
     active(signal); const base = asrBase(this.options.baseUrl); const cache = await this.cache();
+    const transfer = new AbortController();
+    const abort = () => transfer.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    const downloadSignal = transfer.signal;
     const fetcher = this.options.fetcher ?? fetch;
     const request = async (file: string, maximum: number) => {
-      active(signal); const url = new URL(file, base);
+      active(downloadSignal); const url = new URL(file, base);
       if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) throw new Error('识别包路径无效。');
-      const response = await fetcher(url, { signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+      const response = await fetcher(url, { signal: downloadSignal, credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
       if (response.redirected || (response.url && new URL(response.url).origin !== base.origin)) throw new Error('识别包禁止跨源跳转。');
-      return limited(response, maximum, signal);
+      return limited(response, maximum, downloadSignal);
     };
-    const raw = await request('manifest.json', 256 * 1024);
-    const manifest = asrManifestSchema.parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw)) as unknown);
-    let downloadedBytes = 0; progress?.({ downloadedBytes, totalBytes: manifest.totalBytes });
-    for (const asset of manifest.assets) {
-      const all = new Uint8Array(asset.bytes); let offset = 0;
-      for (const part of asset.parts) {
-        active(signal); const key = new URL(part.file, base).href; let bytes: Uint8Array | null = null;
-        try { const cached = await cache.match(key); if (cached) bytes = await verify(await limited(cached, part.bytes, signal), part, signal); } catch { active(signal); }
-        if (!bytes) { bytes = await verify(await request(part.file, part.bytes), part, signal); await cache.put(key, new Response(new Uint8Array(bytes))); }
-        all.set(bytes, offset); offset += bytes.byteLength; downloadedBytes += bytes.byteLength;
-        progress?.({ downloadedBytes, totalBytes: manifest.totalBytes });
+    try {
+      const raw = await request('manifest.json', 256 * 1024);
+      const manifest = asrManifestSchema.parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw)) as unknown);
+      active(downloadSignal); let downloadedBytes = 0; progress?.({ downloadedBytes, totalBytes: manifest.totalBytes });
+      // Identical notice files can share chunks. Queue descriptors, never full
+      // model buffers, and count their logical bytes once per referencing asset.
+      const parts = new Map<string, AsrManifest['assets'][number]['parts'][number] & { logicalBytes: number }>();
+      for (const asset of manifest.assets) for (const part of asset.parts) {
+        const previous = parts.get(part.file);
+        if (previous && (previous.bytes !== part.bytes || previous.sha256 !== part.sha256)) throw new Error('识别包分片描述冲突。');
+        if (previous) previous.logicalBytes += part.bytes;
+        else parts.set(part.file, { ...part, logicalBytes: part.bytes });
       }
-      await verify(all, asset, signal); await cache.put(this.url(manifest, asset.path), new Response(all, { headers: { 'Content-Type': asset.path.endsWith('.mjs') ? 'text/javascript' : 'application/octet-stream' } }));
-    }
-    active(signal); await cache.put(this.catalogKey(), new Response(new Uint8Array(raw), { headers: { 'Content-Type': 'application/json' } })); return manifest;
+      const queue = [...parts.values()]; let cursor = 0; let failed = false; let failure: unknown;
+      const downloadParts = async () => {
+        try {
+          for (;;) {
+            active(downloadSignal); const part = queue[cursor++]; if (!part) return;
+            const key = new URL(part.file, base).href; let bytes: Uint8Array | null = null;
+            try { const cached = await cache.match(key); if (cached) bytes = await verify(await limited(cached, part.bytes, downloadSignal), part, downloadSignal); } catch { active(downloadSignal); }
+            if (!bytes) {
+              bytes = await verify(await request(part.file, part.bytes), part, downloadSignal);
+              active(downloadSignal); await cache.put(key, new Response(new Uint8Array(bytes)));
+            }
+            active(downloadSignal); downloadedBytes += part.logicalBytes;
+            progress?.({ downloadedBytes, totalBytes: manifest.totalBytes });
+          }
+        } catch (error) {
+          // Abort peers immediately, but await their settlement before returning
+          // so none can publish a late progress callback or start another request.
+          if (!failed) { failed = true; failure = error; transfer.abort(); }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, downloadParts));
+      if (failed) throw failure;
+      // All parts are now validated in CacheStorage. Assemble only one asset at a
+      // time; retaining all 73 MB alongside three network buffers is unnecessary.
+      for (const asset of manifest.assets) {
+        active(downloadSignal); const all = new Uint8Array(asset.bytes); let offset = 0;
+        for (const part of asset.parts) {
+          active(downloadSignal); const cached = await cache.match(new URL(part.file, base).href);
+          if (!cached) throw new Error('识别包分片缓存缺失，请重新启用。');
+          const bytes = await verify(await limited(cached, part.bytes, downloadSignal), part, downloadSignal);
+          all.set(bytes, offset); offset += bytes.byteLength;
+        }
+        await verify(all, asset, downloadSignal); active(downloadSignal);
+        await cache.put(this.url(manifest, asset.path), new Response(all, { headers: { 'Content-Type': asset.path.endsWith('.mjs') ? 'text/javascript' : 'application/octet-stream' } }));
+      }
+      active(downloadSignal); await cache.put(this.catalogKey(), new Response(new Uint8Array(raw), { headers: { 'Content-Type': 'application/json' } })); active(downloadSignal); return manifest;
+    } finally { transfer.abort(); signal?.removeEventListener('abort', abort); }
   }
 }

@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const url = process.env.WORD_QA_URL ?? 'http://127.0.0.1:4173/';
+const preparationTimeout = Number(process.env.WORD_ASR_PREPARE_TIMEOUT ?? 600_000);
 const output = path.resolve(process.env.WORD_RETELL_OUTPUT ?? path.join(root, '../../outputs/word-retell/ui-browser'));
 await mkdir(output, { recursive: true });
 // Actual Chrome MediaRecorder receives a public speech fixture as its microphone
@@ -63,10 +64,10 @@ try {
     await page.getByRole('button', { name: '隐藏原文，开始复述', exact: false }).click();
     assert.equal(await page.locator('.retell-passage').count(), 0); assert.equal(await page.locator('textarea').count(), 0);
     await shot('03-first-resource-setup'); assert.equal(report.asrRequests.length, 0);
-    await page.getByRole('button', { name: '下载并启用', exact: true }).click();
-    await page.waitForFunction(() => !document.querySelector('.retell-microphone').disabled, null, { timeout: 180_000 });
+    const prepareStartedAt = Date.now(); await page.getByRole('button', { name: '下载并启用', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('.retell-microphone').disabled, null, { timeout: preparationTimeout });
     assert.ok(report.asrRequests.length > 10); await shot('03-speak-ready');
-    return { originalHidden: true, sameOriginResources: report.asrRequests.length, manualInput: false };
+    return { originalHidden: true, sameOriginResources: report.asrRequests.length, preparationMilliseconds: Date.now() - prepareStartedAt, manualInput: false };
   });
   let completed;
   await check('real recording pauses, resumes, transcribes and saves actual audio/text', async () => { completed = await recordAndFinish(); return completed; });

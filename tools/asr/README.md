@@ -28,7 +28,11 @@ not committed. `tools/build-offline.mjs` independently validates and copies it.
 
 `RetellAsrController` construction only checks local CacheStorage. An explicit
 `prepare()` downloads and SHA-256 validates each part and assembled asset, and
-stores complete virtual files in the isolated `word-retell-asr-v1` cache. The
+stores complete virtual files in the isolated `word-retell-asr-v1` cache.
+At most three same-origin parts download concurrently. Verified cached parts
+are reused; the first failure cancels peers and stops late progress updates.
+Assembly reads one asset at a time from that cache instead of keeping every
+model buffer in memory. Integrity and cancellation checks remain mandatory.
 Chunk and assembled copies require about twice the download size in browser
 storage. Cache eviction by the browser means the user must explicitly prepare
 again; it does not erase vocabulary progress or saved recordings.
