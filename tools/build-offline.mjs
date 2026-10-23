@@ -72,8 +72,11 @@ for (const entry of ['data', 'icons', 'images', 'licenses', 'manifest.webmanifes
 if ((await readdir(dist)).some(entry => ['phrases', 'audio'].includes(entry))) throw new Error('Retired lexical/audio packs must not be deployed.');
 const checkInScenes = await verifyCheckInScenes(path.join(dist, 'images/check-in'));
 await mkdir(path.join(dist, 'licenses'), { recursive: true });
-for (const [pkg, filename] of [['@fontsource/inter', 'Inter-OFL.txt'], ['@fontsource/noto-sans-sc', 'Noto-Sans-SC-OFL.txt'], ['@fontsource/source-serif-4', 'Source-Serif-4-OFL.txt'], ['lucide-react', 'Lucide-ISC.txt'], ['canvas-confetti', 'Canvas-Confetti-ISC.txt'], ['qrcode', 'QRCode-MIT.txt']]) {
-  await writeFile(path.join(dist, 'licenses', filename), await readFile(path.resolve('node_modules', pkg, 'LICENSE')));
+for (const [pkg, filename, sourceName = 'LICENSE'] of [['@fontsource/inter', 'Inter-OFL.txt'], ['@fontsource/noto-sans-sc', 'Noto-Sans-SC-OFL.txt'], ['@fontsource/source-serif-4', 'Source-Serif-4-OFL.txt'], ['lucide-react', 'Lucide-ISC.txt'], ['canvas-confetti', 'Canvas-Confetti-ISC.txt'], ['qrcode', 'QRCode-MIT.txt', 'license']]) {
+  const packageRoot = path.resolve('node_modules', pkg);
+  // Enforce Linux casing even when the local filesystem ignores it.
+  if (!(await readdir(packageRoot)).includes(sourceName)) throw new Error(`Missing exact-case license: ${pkg}/${sourceName}`);
+  await writeFile(path.join(dist, 'licenses', filename), await readFile(path.join(packageRoot, sourceName)));
 }
 const files = [];
 async function visit(folder, prefix = '') {
