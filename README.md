@@ -4,11 +4,12 @@ Claude 原型风格的免费网页/PWA：看词、听音、分组复习、真实
 
 ## 本地运行
 
-需要 Node.js 22.12+（推荐24）、Python 3.10+，无需额外 Python 库。
+需要 Node.js 22.12+（推荐24）、Python 3.12+，无需额外 Python 库。
 
 ```sh
 npm ci
 python tools/pipeline/build.py
+python tools/phrases/build.py
 npm run dev
 ```
 
@@ -28,6 +29,8 @@ npm run preview
 
 preview 启动后，`node tools/experience-smoke.mjs` 检查安卓 Chrome 仿真中的搜索、圆环切换、首见释义、日历与离线恢复；`node tools/audio/browser-smoke.mjs` 检查真实浏览器本机声音及零在线音频请求。仿真不代替手机系统安装、键盘或 Samantha 真机试听。
 
+`python -m unittest discover -s tools/phrases -p 'test_*.py'` 检查短语筛选和义项对齐；`python tools/phrases/build.py --verify` 校验完整生成物；`node tools/phrases/browser-smoke.mjs` 在 preview 中检查真实中文短语、近义表达、空状态、损坏重试、按需加载及离线读取。
+
 ## 数据和发音
 
 - IndexedDB 保存学习快照，逐次写入，失败不会静默推进。多标签页通过 revision 防止旧记录覆盖。
@@ -40,6 +43,9 @@ preview 启动后，`node tools/experience-smoke.mjs` 检查安卓 Chrome 仿真
 - 首页可切换看词/听音进度，圆环首次打开旋转一次；日历按本机日期记录当天去重词数、词义和错误次数，撤销同步回退。旧备份兼容，无法恢复的旧日期不补造。
 - 安卓可从安装入口或 Chrome 菜单安装为 PWA，独立窗口、主屏图标和离线学习，无需商店开发者账号。双击不缩放，保留双指缩放。
 - 词典音标保留来源原文，不宣称已按英美或所有词性校准。
+- 单词详情中的「短语与近义表达」按需展开，学习揭晓后也有入口。来源是固定快照的中文维基词典，经 Kaikki/Wiktextract 提取；中文原文、义项、语域标签和来源链接保留。近义表达的中文解释取自共享义项，不能保证在所有句子中直接互换。
+- 当前短语覆盖 3,762 / 19,106 个学习词，其中 1,325 个含来源支持的近义表达；不是整本词典全覆盖，也没有可靠使用频率排名。缺少资料明确留空，不生成虚假搭配。只下载用户展开的首字母分片，校验后缓存；离线可查看已经读取的内容，不更改学习进度。覆盖数字和筛选规则见[短语管线](tools/phrases/README.md)。
+- 短语数据单独使用 CC BY-SA 4.0，随站点提供完整许可、整理说明和可校验的来源快照；不混称为应用或 ECDICT 的许可。
 
 ## 发布
 

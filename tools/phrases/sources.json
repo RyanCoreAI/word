@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "extractedAt": "2026-10-20",
+  "dumpDate": "2026-10-01",
+  "extractorCommits": ["c1bb342", "6f96ddf"],
+  "license": {
+    "name": "CC-BY-SA-4.0",
+    "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "textUrl": "https://raw.githubusercontent.com/creativecommons/legalcode/main/by-sa_4.0.txt",
+    "file": "licenses/CC-BY-SA-4.0.txt",
+    "localFile": "CC-BY-SA-4.0.txt",
+    "bytes": 20005,
+    "sha256": "a0bd498de6b7991f563789715e3cf9f9a77860b6bb5b2c2b072fb3bb36361008",
+    "mirrorUrl": "https://word.yanxai.com/phrases/licenses/CC-BY-SA-4.0.txt"
+  },
+  "sources": [
+    {
+      "id": "kaikki-zh-en-traditional-20261020",
+      "name": "Chinese Wiktionary English entries (traditional language heading), via Kaikki",
+      "url": "https://kaikki.org/zhwiktionary/%E8%8B%B1%E8%AA%9E/kaikki.org-dictionary-%E8%8B%B1%E8%AA%9E.jsonl",
+      "pageUrl": "https://kaikki.org/zhwiktionary/%E8%8B%B1%E8%AA%9E/index.html",
+      "localFile": "kaikki-zh-traditional.jsonl",
+      "bytes": 63127080,
+      "sha256": "192ebca4ba346264a24ebcd98a8df9e7f3fc8dc6d74cf6f098b2149ee24e1b7f",
+      "archive": {
+        "file": "sources/192ebca4ba346264a24ebcd98a8df9e7f3fc8dc6d74cf6f098b2149ee24e1b7f.jsonl.gz",
+        "bytes": 9011506,
+        "sha256": "464f211486e8f000268e8a4abec8bbccbb8dc8ac0dd05ef4d30cfc86421bd976",
+        "mirrorUrl": "https://word.yanxai.com/phrases/sources/192ebca4ba346264a24ebcd98a8df9e7f3fc8dc6d74cf6f098b2149ee24e1b7f.jsonl.gz"
+      }
+    },
+    {
+      "id": "kaikki-zh-en-simplified-20261020",
+      "name": "Chinese Wiktionary English entries (simplified language heading), via Kaikki",
+      "url": "https://kaikki.org/zhwiktionary/%E8%8B%B1%E8%AF%AD/kaikki.org-dictionary-%E8%8B%B1%E8%AF%AD.jsonl",
+      "pageUrl": "https://kaikki.org/zhwiktionary/%E8%8B%B1%E8%AF%AD/index.html",
+      "localFile": "kaikki-zh-simplified.jsonl",
+      "bytes": 21928316,
+      "sha256": "9a34deb4d964326d33b30a2b3bacc94e58b5a1624527f23202b8759ce0a2bfcd",
+      "archive": {
+        "file": "sources/9a34deb4d964326d33b30a2b3bacc94e58b5a1624527f23202b8759ce0a2bfcd.jsonl.gz",
+        "bytes": 3506469,
+        "sha256": "69de4eb4996c69f9756ef5cfce7ca353683711463da807f1f42a8a05275ff4eb",
+        "mirrorUrl": "https://word.yanxai.com/phrases/sources/9a34deb4d964326d33b30a2b3bacc94e58b5a1624527f23202b8759ce0a2bfcd.jsonl.gz"
+      }
+    }
+  ]
+}
