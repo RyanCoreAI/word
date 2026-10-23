@@ -5,7 +5,7 @@ import path from 'node:path';
 const dist = path.resolve('dist');
 // The current app uses device voices only. Preserve historical audio sources in
 // the workspace, but never copy their generated packs into a new deployment.
-for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', 'phrases']) {
+for (const entry of ['data', 'icons', 'licenses', 'manifest.webmanifest', 'phrases', 'asr']) {
   await cp(path.resolve('apps/web/public', entry), path.join(dist, entry), { recursive: true });
 }
 await mkdir(path.join(dist, 'licenses'), { recursive: true });
@@ -16,7 +16,7 @@ const files = [];
 async function visit(folder, prefix = '') {
   for (const entry of await readdir(folder, { withFileTypes: true })) {
     const relative = prefix + entry.name;
-    if (entry.isDirectory()) { if (!['data', 'audio', 'phrases'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
+    if (entry.isDirectory()) { if (!['data', 'audio', 'phrases', 'asr'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
     else if (!['sw.js', 'CNAME', '.nojekyll'].includes(entry.name)) files.push(relative);
   }
 }
@@ -33,8 +33,9 @@ for (const entry of [manifest.study, ...manifest.shards]) {
 // The builder and browser share one phrase contract. Missing or mismatched
 // source records stop release rather than becoming plausible-looking examples.
 const { createServer } = await import('vite');
-const contracts = await createServer({ configFile: false, root: process.cwd(), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+const contracts = await createServer({ configFile: false, root: process.cwd(), server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' });
 let phraseManifest;
+let asrManifest;
 try {
   const phrases = await contracts.ssrLoadModule('/apps/web/src/lib/phrases.ts');
   const phraseRoot = path.resolve(dist, 'phrases');
@@ -47,17 +48,33 @@ try {
     if (bytes.length !== descriptor.bytes || createHash('sha256').update(bytes).digest('hex') !== descriptor.sha256) throw new Error(`Phrase integrity failure: ${letter}`);
     phrases.parsePhraseShard(JSON.parse(bytes.toString('utf8')), phraseManifest, letter);
   }
-  for (const descriptor of [phraseManifest.license, phraseManifest.attribution, ...phraseManifest.sources.map(source => source.archive)]) {
+  for (const descriptor of [...phraseManifest.licenses, phraseManifest.attribution, ...phraseManifest.sources.map(source => source.archive)]) {
     const filename = path.resolve(phraseRoot, descriptor.file);
     if (!filename.startsWith(phraseRoot + path.sep)) throw new Error('Phrase provenance path escapes its root.');
     const bytes = await readFile(filename);
     if (bytes.length !== descriptor.bytes || createHash('sha256').update(bytes).digest('hex') !== descriptor.sha256) throw new Error(`Phrase provenance integrity failure: ${descriptor.file}`);
+  }
+  const asr = await contracts.ssrLoadModule('/apps/web/src/lib/retell-asr-assets.ts');
+  const asrRoot = path.resolve(dist, 'asr');
+  asrManifest = asr.asrManifestSchema.parse(JSON.parse(await readFile(path.join(asrRoot, 'manifest.json'), 'utf8')));
+  for (const asset of asrManifest.assets) {
+    const parts = [];
+    for (const part of asset.parts) {
+      const filename = path.resolve(asrRoot, part.file);
+      if (!filename.startsWith(asrRoot + path.sep)) throw new Error('ASR path escapes its root.');
+      const bytes = await readFile(filename);
+      if (bytes.length !== part.bytes || createHash('sha256').update(bytes).digest('hex') !== part.sha256) throw new Error(`ASR part integrity failure: ${part.file}`);
+      parts.push(bytes);
+    }
+    const bytes = Buffer.concat(parts);
+    if (bytes.length !== asset.bytes || createHash('sha256').update(bytes).digest('hex') !== asset.sha256) throw new Error(`ASR asset integrity failure: ${asset.path}`);
   }
 } finally { await contracts.close(); }
 const hash = createHash('sha256');
 for (const file of files.sort()) hash.update(await readFile(path.join(dist, file)));
 hash.update(manifest.version);
 hash.update(phraseManifest.version);
+hash.update(asrManifest.version);
 // Worker logic changes must get a fresh cache namespace even if UI assets do not.
 hash.update(await readFile(new URL(import.meta.url)));
 const version = hash.digest('hex').slice(0, 16);
@@ -102,7 +119,7 @@ self.addEventListener('fetch',event=>{
  const url=new URL(event.request.url), scope=new URL(self.registration.scope);
  if(url.origin!==scope.origin||!url.pathname.startsWith(scope.pathname))return;
  const relative=url.pathname.slice(scope.pathname.length);
- if(relative.startsWith('data/')||relative.startsWith('audio/')||relative.startsWith('phrases/'))return;
+ if(relative.startsWith('data/')||relative.startsWith('audio/')||relative.startsWith('phrases/')||relative.startsWith('asr/'))return;
  // These responses are public, same-origin build assets only. A static host may
  // vary on Origin, while module/CSS requests and precache requests use different
  // Origin headers. Ignore that header variation within the explicit shell list.
@@ -121,4 +138,5 @@ await writeFile(path.join(dist, '.nojekyll'), '');
 console.log(`Verified ${manifest.total} dictionary entries; generated offline shell ${version} (${files.length} assets).`);
 console.log('Pronunciation uses device-local voices only; no hosted audio is bundled.');
 console.log(`Verified phrase supplements ${phraseManifest.version}; sources and shards download only on explicit access.`);
+console.log(`Verified local ASR ${asrManifest.version} (${asrManifest.totalBytes} bytes); excluded from shell precache.`);
 console.log(`Service worker: ${(await stat(path.join(dist, 'sw.js'))).size} bytes. Dictionary is downloaded only after user action.`);

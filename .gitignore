@@ -14,6 +14,7 @@ apps/web/public/audio/*
 !apps/web/public/audio/.gitignore
 !apps/web/public/audio/README.md
 apps/web/public/phrases/*
+apps/web/public/asr/*
 outputs/
 __pycache__/
 .DS_Store

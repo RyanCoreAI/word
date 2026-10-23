@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { isLocalDateKey } from './activity';
+import { MAX_STUDY_TRAIL } from './navigation';
+import { previousLocalDateKey, rewindDailyReview } from './daily-review';
 import type { AppState, StudySession, Word, WordProgress } from './types';
 
 export const MAX_WORDS = 1_000_000;
@@ -15,6 +17,10 @@ export const dailyWordActivitySchema = z.object({ look: activityCountsSchema, li
 const dailyActivitySchema = z.record(localDateKeySchema, z.record(idSchema, dailyWordActivitySchema)
   .refine(value => Object.keys(value).length > 0 && Object.keys(value).length <= MAX_WORDS, 'Invalid daily word count'))
   .refine(value => Object.keys(value).length <= 100_000, 'Too many calendar dates');
+const dailyReviewEntrySchema = z.object({ groupNumber: integer.positive(), completed: z.boolean() }).strict();
+const reviewWordsSchema = z.record(idSchema, dailyReviewEntrySchema).refine(value => Object.keys(value).length <= MAX_WORDS, 'Too many daily review words');
+const dailyReviewSchema = z.record(localDateKeySchema, z.object({ look: reviewWordsSchema, listen: reviewWordsSchema }).strict())
+  .refine(value => Object.keys(value).length <= 100_000, 'Too many daily review dates');
 
 export const wordSchema = z.object({
   id: idSchema, word: z.string().min(1).max(500), translation: z.string().max(100_000),
@@ -59,15 +65,25 @@ const modeStateSchema = z.object({
   session: sessionSchema.nullable(), groupNumber: integer,
 }).strict();
 
+export const studyTrailEntrySchema = z.object({
+  id: integer.positive(), mode: z.enum(['look', 'listen']), wordId: idSchema,
+  groupNumber: integer.positive(), position: integer.max(MAX_WORDS),
+  action: z.enum(['known', 'unknown', 'skip', 'defer']), revealed: z.boolean(), recordedAt: integer,
+}).strict().refine(value => value.revealed === (value.action === 'known' || value.action === 'unknown'), 'Trail reveal state does not match its action');
+
 export const undoEntrySchema = z.object({
   mode: z.enum(['look', 'listen']), wordId: idSchema, action: z.enum(['known', 'unknown', 'skip', 'defer']),
   previousProgress: wordProgressSchema.nullable(), previousSession: sessionSchema,
   previousGroupNumber: integer, previousOtherSession: sessionSchema.nullable(), previousOtherGroupNumber: integer,
   wasSkipped: z.boolean(),
   activityDate: localDateKeySchema.optional(), previousDailyActivity: dailyWordActivitySchema.nullable().optional(),
+  studyTrailId: integer.positive().optional(), evictedStudyTrailEntry: studyTrailEntrySchema.optional(),
+  dailyReviewChange: z.object({ date: localDateKeySchema, previous: dailyReviewEntrySchema.nullable() }).strict().optional(),
 }).strict().superRefine((value, ctx) => {
   if ((value.activityDate === undefined) !== (value.previousDailyActivity === undefined)) ctx.addIssue({ code: 'custom', message: 'Incomplete calendar undo snapshot' });
   if (value.activityDate !== undefined && value.action !== 'known' && value.action !== 'unknown') ctx.addIssue({ code: 'custom', message: 'Only answers update the calendar' });
+  if (value.evictedStudyTrailEntry && (value.studyTrailId === undefined || value.evictedStudyTrailEntry.id >= value.studyTrailId)) ctx.addIssue({ code: 'custom', message: 'Invalid evicted trail snapshot' });
+  if (value.dailyReviewChange && (value.action !== 'known' && value.action !== 'unknown' || value.dailyReviewChange.previous && (value.dailyReviewChange.previous.completed || value.dailyReviewChange.previous.groupNumber !== value.previousGroupNumber))) ctx.addIssue({ code: 'custom', message: 'Invalid daily review undo snapshot' });
 });
 
 export const appStateSchema = z.object({
@@ -76,6 +92,8 @@ export const appStateSchema = z.object({
   modes: z.object({ look: modeStateSchema, listen: modeStateSchema }).strict(),
   skipped: idsSchema, history: z.array(undoEntrySchema).max(20),
   dailyActivity: dailyActivitySchema.default({}),
+  studyTrail: z.array(studyTrailEntrySchema).max(MAX_STUDY_TRAIL).default([]),
+  dailyReview: dailyReviewSchema.default({}),
 }).strict();
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -118,6 +136,53 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
   const progressByMode = { look: { ...state.modes.look.progress }, listen: { ...state.modes.listen.progress } };
   const skipped = new Set(state.skipped);
   const dailyActivity = { ...state.dailyActivity };
+  let dailyReview = state.dailyReview;
+  const checkDailyReview = (): void => {
+    const assignments = new Set<string>();
+    const completions: Record<string, number> = {};
+    for (const [date, day] of Object.entries(dailyReview)) {
+      const yesterday = previousLocalDateKey(date);
+      for (const mode of ['look', 'listen'] as const) {
+        for (const [id, marker] of Object.entries(day[mode])) {
+          reference(id);
+          assert(dailyActivity[yesterday]?.[id]?.[mode].unknown, '次日复习缺少昨日错误记录');
+          assert(marker.groupNumber <= state.modes[mode].groupNumber, '次日复习来自未来分组');
+          const assignment = `${mode}:${marker.groupNumber}:${id}`;
+          assert(!assignments.has(assignment), '次日复习重复排入同一组');
+          assignments.add(assignment);
+          if (marker.completed) {
+            const key = `${mode}:${id}`;
+            completions[key] = (completions[key] ?? 0) + 1;
+            const map = progressByMode[mode];
+            const progress = Object.prototype.hasOwnProperty.call(map, id) ? map[id] : undefined;
+            assert(completions[key]! <= (progress?.seenCount ?? 0), '次日复习完成次数超过真实作答');
+          }
+        }
+      }
+    }
+  };
+  checkDailyReview();
+  let studyTrail = [...state.studyTrail];
+  const checkStudyTrail = (): void => {
+    let previousId = 0;
+    const counts: Record<string, { known: number; unknown: number }> = {};
+    for (const item of studyTrail) {
+      reference(item.wordId);
+      assert(item.id > previousId, '浏览记录顺序无效');
+      assert(item.groupNumber <= state.modes[item.mode].groupNumber, '浏览记录来自未来分组');
+      previousId = item.id;
+      if (item.action === 'known' || item.action === 'unknown') {
+        const key = `${item.mode}:${item.wordId}`;
+        const count = counts[key] ?? { known: 0, unknown: 0 };
+        count[item.action] += 1;
+        counts[key] = count;
+        const map = progressByMode[item.mode];
+        const progress = Object.prototype.hasOwnProperty.call(map, item.wordId) ? map[item.wordId] : undefined;
+        assert(count.known <= (progress?.rightCount ?? 0) && count.unknown <= (progress?.wrongCount ?? 0), '浏览记录超过真实作答次数');
+      }
+    }
+  };
+  checkStudyTrail();
   const checkActivityTotals = (): void => {
     const totals: Record<string, { look: { known: number; unknown: number }; listen: { known: number; unknown: number } }> = {};
     for (const day of Object.values(dailyActivity)) {
@@ -146,6 +211,21 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
     assert(entry.previousSession.status === 'active' && !entry.previousSession.revealed, '撤销记录不是有效答题状态');
     assert(entry.previousSession.items[entry.previousSession.cursor] === entry.wordId, '撤销词条与位置不一致');
     assert(!entry.wasSkipped, '已排除词不能成为作答');
+    if (entry.dailyReviewChange) {
+      const marker = dailyReview[entry.dailyReviewChange.date]?.[entry.mode]?.[entry.wordId];
+      assert(marker?.completed && marker.groupNumber === entry.previousGroupNumber, '撤销记录缺少次日复习完成标记');
+    }
+    dailyReview = rewindDailyReview(dailyReview, entry);
+    if (entry.studyTrailId !== undefined) {
+      const item = studyTrail.at(-1);
+      assert(item?.id === entry.studyTrailId, '撤销浏览记录缺失或顺序错误');
+      assert(item.mode === entry.mode && item.wordId === entry.wordId && item.action === entry.action
+        && item.groupNumber === entry.previousGroupNumber && item.position === entry.previousSession.cursor, '撤销浏览记录与作答不一致');
+      if (entry.evictedStudyTrailEntry) {
+        assert(studyTrail.length === MAX_STUDY_TRAIL, '浏览记录不应包含过期快照');
+        studyTrail = [{ ...entry.evictedStudyTrailEntry }, ...studyTrail.slice(0, -1)];
+      } else studyTrail = studyTrail.slice(0, -1);
+    }
     const map = progressByMode[entry.mode];
     const progress = Object.prototype.hasOwnProperty.call(map, entry.wordId) ? map[entry.wordId] : undefined;
     const before = entry.previousProgress;
@@ -183,6 +263,8 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
     if (!entry.wasSkipped) skipped.delete(entry.wordId);
   }
   checkActivityTotals();
+  checkStudyTrail();
+  checkDailyReview();
   return state;
 }
 

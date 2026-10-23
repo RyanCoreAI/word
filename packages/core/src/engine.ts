@@ -1,6 +1,8 @@
 import { DEFAULT_SETTINGS, MODES } from './types';
 import { settingsSchema } from './schemas';
 import { cloneDailyWordActivity, getLocalDateKey, isLocalDateKey } from './activity';
+import { recordStudyTrail, undoStudyTrail } from './navigation';
+import { completeDailyReview, getYesterdayReviewWordIds, reserveDailyReview, rewindDailyReview } from './daily-review';
 import type { AppState, AnswerResult, Mode, Settings, StudySession, UndoEntry, Word, WordProgress } from './types';
 
 const own = <T>(record: Record<string, T>, key: string): T | undefined =>
@@ -24,7 +26,7 @@ export function createInitialState(dictionaryVersion: string, now: number): AppS
       look: { progress: {}, session: null, groupNumber: 0 },
       listen: { progress: {}, session: null, groupNumber: 0 },
     },
-    skipped: [], history: [], dailyActivity: {},
+    skipped: [], history: [], dailyActivity: {}, studyTrail: [], dailyReview: {},
   };
 }
 
@@ -57,7 +59,7 @@ function advancePastSkipped(session: StudySession, skipped: ReadonlySet<string>)
 }
 
 /** Resume the exact session, or start the next group after its summary. */
-export function ensureSession(state: AppState, words: readonly Word[], mode: Mode, now: number): AppState {
+export function ensureSession(state: AppState, words: readonly Word[], mode: Mode, now: number, localDateKey?: string): AppState {
   const modeState = state.modes[mode];
   const skipped = new Set(state.skipped);
   if (modeState.session?.status === 'active') {
@@ -66,7 +68,12 @@ export function ensureSession(state: AppState, words: readonly Word[], mode: Mod
     if (resumed.cursor === modeState.session.cursor) return state;
     return touch({ ...state, modes: { ...state.modes, [mode]: { ...modeState, session: resumed } } }, now);
   }
+  const today = localDateKey ?? getLocalDateKey(now);
+  if (!isLocalDateKey(today)) throw new Error('Invalid local date');
   const available = words.filter(word => !skipped.has(word.id));
+  const markers = state.dailyReview[today]?.[mode] ?? {};
+  const dueIds = new Set(getYesterdayReviewWordIds(state, today, mode).filter(id => !Object.prototype.hasOwnProperty.call(markers, id)));
+  const due = available.filter(word => dueIds.has(word.id)).sort((a, b) => a.rank - b.rank || (a.id < b.id ? -1 : 1));
   const review = available.filter(word => own(modeState.progress, word.id)?.status === 'learning')
     .sort((a, b) => {
       const pa = own(modeState.progress, a.id)!;
@@ -76,14 +83,16 @@ export function ensureSession(state: AppState, words: readonly Word[], mode: Mod
   const fresh = available.filter(word => !own(modeState.progress, word.id) && matchesSettings(word, state.settings))
     .sort((a, b) => a.rank - b.rank || (a.id < b.id ? -1 : 1));
   // Every outstanding review is retained even after the requested size shrinks.
-  const ids = [...review, ...fresh.slice(0, Math.max(0, state.settings.groupSize - review.length))].map(word => word.id);
+  const remainingReview = review.filter(word => !dueIds.has(word.id));
+  const selected = [...due, ...remainingReview];
+  const ids = [...selected, ...fresh.slice(0, Math.max(0, state.settings.groupSize - selected.length))].map(word => word.id);
   if (!ids.length && modeState.session?.status === 'finished' && !modeState.session.items.length) return state;
   const groupNumber = modeState.groupNumber + (ids.length ? 1 : 0);
   const session: StudySession = {
     groupNumber, items: ids, cursor: 0, revealed: false,
     status: ids.length ? 'active' : 'finished', known: 0, unknown: 0, skipped: 0,
   };
-  return touch({ ...state, modes: { ...state.modes, [mode]: { ...modeState, groupNumber, session } } }, now);
+  return touch({ ...state, dailyReview: reserveDailyReview(state, today, mode, groupNumber, due.map(word => word.id)), modes: { ...state.modes, [mode]: { ...modeState, groupNumber, session } } }, now);
 }
 
 function journal(state: AppState, mode: Mode, action: UndoEntry['action'], id: string): UndoEntry {
@@ -144,13 +153,18 @@ export function answer(state: AppState, mode: Mode, result: AnswerResult, expect
   const previousDailyActivity = own(day, id);
   const activity = previousDailyActivity ? cloneDailyWordActivity(previousDailyActivity) : { look: { known: 0, unknown: 0 }, listen: { known: 0, unknown: 0 } };
   activity[mode][result] += 1;
+  const trail = recordStudyTrail(state, mode, result, id, session, now);
+  const dailyReview = completeDailyReview(state, mode, id, session.groupNumber, activityDate);
   return touch({
     ...state,
     modes: { ...state.modes, [mode]: { ...modeState, progress: { ...modeState.progress, [id]: progress }, session: nextSession } },
     dailyActivity: { ...state.dailyActivity, [activityDate]: { ...day, [id]: activity } },
+    studyTrail: trail.studyTrail,
+    dailyReview: dailyReview.dailyReview,
     history: [...state.history, {
-      ...journal(state, mode, result, id), activityDate,
+      ...journal(state, mode, result, id), ...trail.undo, activityDate,
       previousDailyActivity: previousDailyActivity ? cloneDailyWordActivity(previousDailyActivity) : null,
+      ...(dailyReview.change ? { dailyReviewChange: dailyReview.change } : {}),
     }].slice(-20),
   }, now);
 }
@@ -168,11 +182,12 @@ export function nextWord(state: AppState, mode: Mode, expectedToken: string | nu
 export function skipWord(state: AppState, mode: Mode, expectedToken: string | null, now: number): AppState {
   const active = activeItem(state, mode, expectedToken);
   if (!active || active.session.revealed || state.skipped.includes(active.id)) return state;
-  const entry = journal(state, mode, 'skip', active.id);
+  const trail = recordStudyTrail(state, mode, 'skip', active.id, active.session, now);
+  const entry = { ...journal(state, mode, 'skip', active.id), ...trail.undo };
   const skipped = [...state.skipped, active.id];
   const modeState = state.modes[mode];
   const session = advancePastSkipped(active.session, new Set(skipped));
-  return touch({ ...state, settings: { ...state.settings, skipHintSeen: true }, skipped, modes: { ...state.modes, [mode]: { ...modeState, session } }, history: [...state.history, entry].slice(-20) }, now);
+  return touch({ ...state, settings: { ...state.settings, skipHintSeen: true }, skipped, studyTrail: trail.studyTrail, modes: { ...state.modes, [mode]: { ...modeState, session } }, history: [...state.history, entry].slice(-20) }, now);
 }
 
 /** Audio failure or a temporary pause: skip this encounter, preserve all learning counts. */
@@ -181,9 +196,11 @@ export function deferWord(state: AppState, mode: Mode, expectedToken: string | n
   if (!active || active.session.revealed) return state;
   const modeState = state.modes[mode];
   const session = advancePastSkipped({ ...active.session, cursor: active.session.cursor + 1, skipped: active.session.skipped + 1 }, new Set(state.skipped));
+  const trail = recordStudyTrail(state, mode, 'defer', active.id, active.session, now);
   return touch({
     ...state, modes: { ...state.modes, [mode]: { ...modeState, session } },
-    history: [...state.history, journal(state, mode, 'defer', active.id)].slice(-20),
+    studyTrail: trail.studyTrail,
+    history: [...state.history, { ...journal(state, mode, 'defer', active.id), ...trail.undo }].slice(-20),
   }, now);
 }
 
@@ -208,6 +225,8 @@ export function undo(state: AppState, now: number): AppState {
   return touch({
     ...state,
     dailyActivity,
+    dailyReview: rewindDailyReview(state.dailyReview, entry),
+    studyTrail: undoStudyTrail(state, entry),
     modes: {
       ...state.modes,
       [entry.mode]: { ...modeState, progress, session: cloneSession(entry.previousSession), groupNumber: entry.previousGroupNumber },

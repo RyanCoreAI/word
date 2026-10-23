@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "status": "verified-for-schema2-build",
+  "expectedWords": 48,
+  "editorial": {
+    "file": "editorial.jsonl",
+    "bytes": 41390,
+    "sha256": "223857350c95ba3c86bd44dca9e475b719b375a65d29a5f0b0202e7e9493aabe",
+    "license": "WordNet-3.0 derivative; original Chinese editorial notes offered under the same use/copy/modify/distribute permission; retain source and modification notices",
+    "meaningOrigin": "Original short Chinese editorial explanations checked against the selected English WordNet sense; not COW translations, not an official IELTS list"
+  },
+  "sources": [
+    {
+      "file": "wn-data-eng.tab",
+      "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/wn-data-eng.tab",
+      "bytes": 5843130,
+      "sha256": "d1409d88addcdb890b1606dd280b558cca4258b1f33bd580d54ed949daad1ede"
+    },
+    {
+      "file": "omw-en-2.0.tar.xz",
+      "url": "https://github.com/omwn/omw-data/releases/download/v2.0/omw-en-2.0.tar.xz",
+      "bytes": 11288332,
+      "sha256": "0e09dfb7f096bc3f10b9de68ffecf13839fa22ae46fd9b227cec890d204ca1dc"
+    },
+    {
+      "file": "PWN30-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/LICENSE",
+      "bytes": 1934,
+      "sha256": "879422521551f1933cdb75a56c89da11ffce2c800c9431052d7b66207b5c2c68"
+    }
+  ],
+  "limitations": [
+    "24 selected synsets / 48 words; no claim of whole-dictionary coverage or official IELTS frequency",
+    "No example sentences were generated",
+    "Usage notes constrain substitution; exact synset membership is not a promise of identical grammar/register",
+    "COW was examined and found to contain errors; no COW bulk translations are included"
+  ],
+  "productionBaseline": {
+    "version": "wiktionary-zh-db3b46128740f9ce042a",
+    "manifestSha256": "2b67c16a84a02897b05a973ad13f9a361e7ef4c5935802cd61686468943d42ac"
+  }
+}

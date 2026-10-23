@@ -1,5 +1,7 @@
 import copy
+import csv
 import gzip
+import io
 import json
 from pathlib import Path
 import sqlite3
@@ -20,6 +22,41 @@ def entry(word="take a break", meaning="休息一下", synonyms=None, **fields):
 
 
 class PhraseSelectionTests(unittest.TestCase):
+    def csv_bytes(self, rows):
+        stream = io.StringIO(newline="")
+        writer = csv.DictWriter(stream, fieldnames=["word", "translation", "collins", "oxford", "tag"], lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(dict.fromkeys(writer.fieldnames, "") | row)
+        return stream.getvalue().encode("utf-8")
+
+    def test_ecdict_exact_chinese_and_physical_source_lines_are_preserved_without_synonyms(self):
+        raw = self.csv_bytes([{"word": "carry out", "translation": "进行\n执行"}, {"word": "give up", "translation": "放弃", "collins": "4"}])
+        review = {"allowExact": {"carry out": {"translation": "进行\n执行"}}}
+        phrases, measured = build.ecdict_phrases(raw, {"id": build.ECDICT_SOURCE_ID}, review)
+        self.assertEqual([p["sourceUrl"] for p in phrases], [build.ECDICT_LINE_BASE + "2", build.ECDICT_LINE_BASE + "4"])
+        self.assertEqual(phrases[0]["senses"][0]["meaning"], "进行\n执行")
+        self.assertTrue(all(not s["substitutes"] for p in phrases for s in p["senses"]))
+        self.assertEqual(measured["ecdictExplicitlyReviewedPhrases"], 1)
+
+    def test_ecdict_requires_real_markers_or_review_and_rejects_uncertain_entries(self):
+        raw = self.csv_bytes([{"word": "made up", "translation": "构成"}, {"word": "web page", "translation": "[网络] 网页", "collins": "3"}, {"word": "head way", "translation": "通风联络巷道", "oxford": "1"}, {"word": "higher education", "translation": "高等教育", "collins": "2"}])
+        phrases, _ = build.ecdict_phrases(raw, {"id": build.ECDICT_SOURCE_ID}, {"excludeExact": {"head way": "reviewed ambiguity"}, "rejectedChineseLabels": ["[网络]"]})
+        self.assertEqual([p["text"] for p in phrases], ["higher education"])
+
+    def test_ecdict_explicit_review_fails_when_source_translation_changes(self):
+        raw = self.csv_bytes([{"word": "carry out", "translation": "不同中文"}])
+        with self.assertRaisesRegex(ValueError, "reviewed ECDICT"):
+            build.ecdict_phrases(raw, {"id": build.ECDICT_SOURCE_ID}, {"allowExact": {"carry out": {"translation": "执行"}}})
+
+    def test_word_senses_can_be_the_only_content_without_a_fabricated_phrase(self):
+        sense = {"id": "pwn30-02161432-a", "meaning": "重要的", "substitutes": [{"text": "significant"}]}
+        index, counts = build.build_index([], {"important"}, word_senses={"important": [sense]})
+        self.assertEqual(index["important"]["phrases"], [])
+        self.assertEqual(index["important"]["wordSenses"], [sense])
+        self.assertEqual(counts["dictionaryWordsWithPhrases"], 0)
+        self.assertEqual(counts["dictionaryWordsWithWordSenses"], 1)
+
     def test_single_sense_relation_keeps_shared_meaning_and_real_provenance(self):
         value = entry(synonyms=[{"word": "have a break", "tags": ["UK"]}])
         value["senses"][0]["tags"] = ["informal"]
@@ -135,6 +172,35 @@ class PhraseSelectionTests(unittest.TestCase):
         self.assertEqual(len(index["take"]["phrases"]), 1)
         self.assertEqual(index["take"]["phrases"][0]["sourceId"], "s2")
 
+    def test_flagged_ecdict_duplicate_does_not_erase_or_borrow_a_verified_source_synonym(self):
+        wiktionary = entry("because of", "由於", synonyms=[{"word": "due to"}], pos="phrase")
+        source_phrase = build.phrase_entry(wiktionary, "frozen-wiktionary")
+        raw = self.csv_bytes([{"word": "because of", "translation": "因为", "oxford": "1"}])
+        supplemental, _ = build.ecdict_phrases(raw, {"id": build.ECDICT_SOURCE_ID}, {})
+        for pos in ["phrase", "prep"]:
+            with self.subTest(pos=pos):
+                source = copy.deepcopy(wiktionary)
+                source["pos"] = pos
+                index, _ = build.build_index([("frozen-wiktionary", [source])], {"because"}, supplemental)
+                phrases = index["because"]["phrases"]
+                self.assertEqual(len(phrases), 1)
+                retained = phrases[0]
+                self.assertEqual(retained, build.phrase_entry(source, "frozen-wiktionary"))
+                self.assertEqual(retained["senses"][0]["meaning"], "由於")
+                self.assertEqual(retained["senses"][0]["substitutes"][0]["text"], "due to")
+                self.assertEqual(retained["senses"][0]["substitutes"][0]["sourceId"], "frozen-wiktionary")
+        self.assertEqual(source_phrase["senses"][0]["meaning"], "由於")
+        self.assertEqual(supplemental[0]["senses"][0]["meaning"], "因为")
+        self.assertEqual(supplemental[0]["senses"][0]["substitutes"], [])
+
+    def test_explicit_review_selection_still_precedes_other_whole_source_records(self):
+        wiktionary = entry("carry out", "執行", synonyms=[{"word": "execute"}], pos="phrase")
+        raw = self.csv_bytes([{"word": "carry out", "translation": "执行；实现"}])
+        supplemental, _ = build.ecdict_phrases(raw, {"id": build.ECDICT_SOURCE_ID}, {"allowExact": {"carry out": {"translation": "执行；实现"}}})
+        index, _ = build.build_index([("frozen-wiktionary", [wiktionary])], {"carry"}, supplemental)
+        self.assertEqual(index["carry"]["phrases"], supplemental)
+        self.assertEqual(supplemental[0]["senses"][0]["substitutes"], [])
+
 
 class PhraseArtifactTests(unittest.TestCase):
     def setUp(self):
@@ -233,6 +299,36 @@ class PhraseArtifactTests(unittest.TestCase):
         self.assertEqual(archive[3] & 8, 0)
         self.assertEqual(gzip.decompress(archive), data)
         self.assertEqual(archive, build.stable_gzip(data))
+
+    def test_original_identity_archive_is_not_reinterpreted_as_gzip(self):
+        data = b"original archive bytes"
+        descriptor = build.metadata("unused", data) | {"archiveEncoding": "identity"}
+        self.assertEqual(build.inflate(data, descriptor), data)
+        with self.assertRaisesRegex(ValueError, "SHA-256"):
+            build.inflate(data + b"changed", descriptor)
+
+    def test_mixed_license_notices_are_preserved_individually(self):
+        args = self.fixture()
+        license_data = b"test-only complete additional fixture notice"
+        (args[5] / "MIT.txt").write_bytes(license_data)
+        args[0]["additionalLicenses"] = [build.metadata("licenses/MIT.txt", license_data) | {
+            "name": "MIT", "url": "https://opensource.org/license/mit", "textUrl": "https://example.invalid/MIT.txt",
+            "localFile": "MIT.txt", "mirrorUrl": "https://example.invalid/MIT.txt"}]
+        manifest = build.build(*args, allow_download=False)
+        self.assertEqual([info["name"] for info in manifest["licenses"]], ["CC-BY-SA-4.0", "MIT"])
+        self.assertEqual(manifest["license"]["name"], "CC-BY-SA-4.0")
+        self.assertEqual((args[3] / "licenses/MIT.txt").read_bytes(), license_data)
+
+    def test_failed_candidate_validation_never_replaces_the_active_manifest(self):
+        args = self.fixture()
+        build.build(*args, allow_download=False)
+        active = args[3] / "manifest.json"
+        before = active.read_bytes()
+        args[0]["sources"][0]["name"] = "changed candidate metadata"
+        with patch.object(build, "verify_output", side_effect=ValueError("candidate rejected")):
+            with self.assertRaisesRegex(ValueError, "candidate rejected"):
+                build.build(*args, allow_download=False)
+        self.assertEqual(active.read_bytes(), before)
 
     def test_malformed_jsonl_is_an_explicit_failure(self):
         with self.assertRaisesRegex(ValueError, "line 2"):

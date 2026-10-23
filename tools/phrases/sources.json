@@ -1,8 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "extractedAt": "2026-10-20",
   "dumpDate": "2026-10-01",
-  "extractorCommits": ["c1bb342", "6f96ddf"],
+  "extractorCommits": [
+    "c1bb342",
+    "6f96ddf"
+  ],
   "license": {
     "name": "CC-BY-SA-4.0",
     "url": "https://creativecommons.org/licenses/by-sa/4.0/",
@@ -27,7 +30,8 @@
         "bytes": 9011506,
         "sha256": "464f211486e8f000268e8a4abec8bbccbb8dc8ac0dd05ef4d30cfc86421bd976",
         "mirrorUrl": "https://word.yanxai.com/phrases/sources/192ebca4ba346264a24ebcd98a8df9e7f3fc8dc6d74cf6f098b2149ee24e1b7f.jsonl.gz"
-      }
+      },
+      "kind": "wiktionary-jsonl"
     },
     {
       "id": "kaikki-zh-en-simplified-20261020",
@@ -42,7 +46,155 @@
         "bytes": 3506469,
         "sha256": "69de4eb4996c69f9756ef5cfce7ca353683711463da807f1f42a8a05275ff4eb",
         "mirrorUrl": "https://word.yanxai.com/phrases/sources/9a34deb4d964326d33b30a2b3bacc94e58b5a1624527f23202b8759ce0a2bfcd.jsonl.gz"
+      },
+      "kind": "wiktionary-jsonl"
+    },
+    {
+      "id": "ecdict-bc015ed2e24a",
+      "name": "ECDICT exact multiword entries with retained source flags or explicit editorial selection",
+      "url": "https://raw.githubusercontent.com/skywind3000/ECDICT/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv",
+      "pageUrl": "https://github.com/skywind3000/ECDICT/tree/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b",
+      "localFile": "ecdict.csv",
+      "repoFile": "data/raw/ecdict.csv",
+      "kind": "ecdict-csv",
+      "archiveEncoding": "gzip",
+      "license": "MIT",
+      "dumpDate": "2025-03-28",
+      "extractedAt": "2026-10-22",
+      "bytes": 65933428,
+      "sha256": "1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf",
+      "archive": {
+        "file": "sources/1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf.csv.gz",
+        "bytes": 22483297,
+        "sha256": "daa72349712f85c4a287196935c89d0ffaf17e798ce2e72825c10fc71e7a6df7",
+        "mirrorUrl": "https://word.yanxai.com/phrases/sources/1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf.csv.gz"
+      }
+    },
+    {
+      "id": "omw-pwn30-reference-406bf83b3c50",
+      "name": "Princeton WordNet 3.0 English lemma table via OMW",
+      "url": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/wn-data-eng.tab",
+      "pageUrl": "https://github.com/omwn/omw-data/blob/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/wn-data-eng.tab",
+      "localFile": "wn-data-eng.tab",
+      "repoFile": "work/phrase-expansion-research/wn-data-eng.tab",
+      "kind": "wordnet-tab",
+      "archiveEncoding": "gzip",
+      "license": "WordNet-3.0",
+      "dumpDate": "2026-03-28",
+      "extractedAt": "2026-10-22",
+      "bytes": 5843130,
+      "sha256": "d1409d88addcdb890b1606dd280b558cca4258b1f33bd580d54ed949daad1ede",
+      "archive": {
+        "file": "sources/d1409d88addcdb890b1606dd280b558cca4258b1f33bd580d54ed949daad1ede.tab.gz",
+        "bytes": 1480125,
+        "sha256": "f23b21f12b23109f3079d656c32aac6cb437eab6f99e8c96faa4fc8e3f8406b3",
+        "mirrorUrl": "https://word.yanxai.com/phrases/sources/d1409d88addcdb890b1606dd280b558cca4258b1f33bd580d54ed949daad1ede.tab.gz"
+      }
+    },
+    {
+      "id": "omw-pwn30-2.0",
+      "name": "OMW English 2.0 based on Princeton WordNet 3.0",
+      "url": "https://github.com/omwn/omw-data/releases/download/v2.0/omw-en-2.0.tar.xz",
+      "pageUrl": "https://github.com/omwn/omw-data/releases/tag/v2.0",
+      "localFile": "omw-en-2.0.tar.xz",
+      "repoFile": "work/phrase-expansion-research/omw-en-2.0.tar.xz",
+      "kind": "wordnet-lmf",
+      "archiveEncoding": "identity",
+      "license": "WordNet-3.0",
+      "dumpDate": "2026-02-01",
+      "extractedAt": "2026-10-22",
+      "bytes": 11288332,
+      "sha256": "0e09dfb7f096bc3f10b9de68ffecf13839fa22ae46fd9b227cec890d204ca1dc",
+      "archive": {
+        "file": "sources/0e09dfb7f096bc3f10b9de68ffecf13839fa22ae46fd9b227cec890d204ca1dc.tar.xz",
+        "bytes": 11288332,
+        "sha256": "0e09dfb7f096bc3f10b9de68ffecf13839fa22ae46fd9b227cec890d204ca1dc",
+        "mirrorUrl": "https://word.yanxai.com/phrases/sources/0e09dfb7f096bc3f10b9de68ffecf13839fa22ae46fd9b227cec890d204ca1dc.tar.xz"
+      }
+    },
+    {
+      "id": "yanxai-editorial-pwn30-20261022",
+      "name": "Yanxai Word original Chinese editorial sense selections derived from WordNet 3.0",
+      "url": "https://raw.githubusercontent.com/RyanCoreAI/word/claude/word-app-mockups/tools/phrases/editorial.jsonl",
+      "pageUrl": "https://github.com/RyanCoreAI/word/blob/claude/word-app-mockups/tools/phrases/editorial.jsonl",
+      "localFile": "editorial.jsonl",
+      "repoFile": "tools/phrases/editorial.jsonl",
+      "kind": "editorial-jsonl",
+      "archiveEncoding": "gzip",
+      "license": "WordNet-3.0",
+      "dumpDate": "2026-10-22",
+      "extractedAt": "2026-10-22",
+      "bytes": 41390,
+      "sha256": "223857350c95ba3c86bd44dca9e475b719b375a65d29a5f0b0202e7e9493aabe",
+      "archive": {
+        "file": "sources/223857350c95ba3c86bd44dca9e475b719b375a65d29a5f0b0202e7e9493aabe.jsonl.gz",
+        "bytes": 4823,
+        "sha256": "ae9d25a8d72208db83d59cafd3799806655053ee63eb56451091441e1fe4c710",
+        "mirrorUrl": "https://word.yanxai.com/phrases/sources/223857350c95ba3c86bd44dca9e475b719b375a65d29a5f0b0202e7e9493aabe.jsonl.gz"
       }
     }
-  ]
+  ],
+  "additionalLicenses": [
+    {
+      "name": "MIT",
+      "url": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/LICENSE",
+      "textUrl": "https://raw.githubusercontent.com/skywind3000/ECDICT/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/LICENSE",
+      "file": "licenses/ECDICT-LICENSE.txt",
+      "localFile": "ECDICT-LICENSE.txt",
+      "repoFile": "data/raw/ECDICT-LICENSE.txt",
+      "bytes": 1063,
+      "sha256": "f8552dd246f61a4e064569eae6194a01c6b3d63b03bf27c6ca863593c549ed0f",
+      "mirrorUrl": "https://word.yanxai.com/phrases/licenses/ECDICT-LICENSE.txt"
+    },
+    {
+      "name": "WordNet-3.0",
+      "url": "https://wordnet.princeton.edu/license-and-commercial-use",
+      "textUrl": "https://raw.githubusercontent.com/omwn/omw-data/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/LICENSE",
+      "file": "licenses/PWN30-LICENSE.txt",
+      "localFile": "PWN30-LICENSE.txt",
+      "repoFile": "work/phrase-expansion-research/PWN30-LICENSE.txt",
+      "bytes": 1934,
+      "sha256": "879422521551f1933cdb75a56c89da11ffce2c800c9431052d7b66207b5c2c68",
+      "mirrorUrl": "https://word.yanxai.com/phrases/licenses/PWN30-LICENSE.txt"
+    }
+  ],
+  "ecdictReview": {
+    "allowExact": {
+      "carry out": {
+        "translation": "进行, 实现, 贯彻, 执行\\n[经] 进行(到底), 执行, 落实",
+        "reason": "Explicitly selected after checking the execute/implement meaning; retain all source Chinese text."
+      },
+      "bring forward": {
+        "translation": "提出, 提前\\n[经] 结转",
+        "reason": "Proposal, earlier scheduling and accounting carry-forward meanings retained as a whole source entry."
+      },
+      "take into account": {
+        "translation": "重视, 考虑",
+        "reason": "Explicitly selected consideration expression; no inferred synonym relation."
+      },
+      "economic growth": {
+        "translation": "[经] 经济成长, 经济增长",
+        "reason": "Explicitly selected economic topic phrase; no corpus frequency claim."
+      }
+    },
+    "excludeExact": {
+      "bring about": "Source Chinese mixes a causing meaning and an ambiguous turning-around meaning; omit from teaching selection rather than rewrite.",
+      "head way": "Spacing suggests common headway, but source Chinese is a specialist ventilation passage; do not present as a general learner phrase.",
+      "merchant bank": "Source Chinese commercial bank does not distinguish the merchant/investment-banking meaning; omit instead of repairing the source.",
+      "betting shop": "Source Chinese lottery sales point is too narrow for a general betting shop; omit from teaching selection.",
+      "look after": "Leading source Chinese watch after/see off is liable to obscure the usual look-after-care meaning; omit this ECDICT record rather than silently rewrite.",
+      "rule of law": "Source mixes regulations and rule-of-law meanings; omit from this teaching supplement rather than narrow the original."
+    },
+    "rejectedChineseLabels": [
+      "[网络]",
+      "[網絡]",
+      "[网路]",
+      "[医]",
+      "[醫]",
+      "[化]",
+      "[计]",
+      "[計]"
+    ],
+    "meaning": "Exact full entry translation with literal backslash-n decoded; no WordNet sense joining or inferred substitutes."
+  }
 }

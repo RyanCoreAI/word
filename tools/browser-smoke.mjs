@@ -63,6 +63,7 @@ async function home() {
 
 async function snapshot(name, target = page) {
   await target.evaluate(() => document.fonts.ready);
+  if (await target.locator('.phrase-section').count()) await target.locator('.phrase-section .phrase-note[role="status"]').waitFor({ state: 'detached' });
   await target.locator('.word-zone,.listen-zone').evaluateAll(nodes => Promise.all(nodes.flatMap(node => node.getAnimations().map(animation => animation.finished.catch(() => undefined)))));
   const layout = await target.evaluate(() => ({
     viewport: innerWidth,
@@ -177,8 +178,7 @@ try {
   check(step);
 
   step = 'permanent skip and restore';
-  await page.getByLabel('学习操作', { exact: true }).click();
-  await click('太简单，长期跳过');
+  await click('斩，长期跳过当前单词');
   const skipped = await waitState(s => s.skipped.includes(knownId));
   assert.deepEqual(skipped.modes.look.progress, undone.modes.look.progress);
   await home();
@@ -357,16 +357,16 @@ try {
   await page.getByRole('dialog', { name: '单词详情', exact: true }).waitFor();
   await snapshot('15-mobile-word-details');
   check(step, { known: 9, unknown: 1, reviewWord });
-  step = 'reveal matches the original Claude geometry';
+  step = 'reveal makes room for inline phrases and keeps answer actions stable';
   for (const device of ['mobile', 'desktop']) {
     const hidden = report.screenshots.find(s => s.name.endsWith(`${device}-look-hidden`)).layout;
     const revealed = report.screenshots.find(s => s.name.endsWith(`${device}-look-revealed`)).layout;
-    // The original board1 normalized at 390x844 has word y=250 -> 252:
-    // hidden reading line and revealed after row differ by 4px in total height.
-    // Retain that source geometry instead of adding the bulky fixed placeholders
-    // rejected by the user. Measure only after the real 180ms entry has finished.
-    assert.ok(Math.abs(hidden.wordAnchor.x - revealed.wordAnchor.x) <= 1 && Math.abs((revealed.wordAnchor.y - hidden.wordAnchor.y) - 2) <= 1,
-      `${device} word differs from original geometry: ${JSON.stringify({ hidden: hidden.wordAnchor, revealed: revealed.wordAnchor })}`);
+    // The newer requirement puts real phrases directly below revealed meanings.
+    // The word moves up to make reading space; its horizontal alignment and the
+    // fixed answer controls must remain stable. Original fonts/tokens are checked
+    // separately by the source comparison and actual visual review.
+    assert.ok(Math.abs(hidden.wordAnchor.x - revealed.wordAnchor.x) <= 1 && revealed.wordAnchor.y < hidden.wordAnchor.y,
+      `${device} revealed word did not make room for phrases: ${JSON.stringify({ hidden: hidden.wordAnchor, revealed: revealed.wordAnchor })}`);
     assert.ok(Math.abs(hidden.actionsBox.y - revealed.actionsBox.y) <= 1,
       `${device} answer actions moved: ${JSON.stringify({ hidden: hidden.actionsBox, revealed: revealed.actionsBox })}`);
     check(`${step} (${device})`, { hidden: hidden.wordAnchor, revealed: revealed.wordAnchor, actionsBefore: hidden.actionsBox, actionsAfter: revealed.actionsBox });

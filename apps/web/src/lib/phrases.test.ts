@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PhraseStore, parsePhraseManifest, parsePhraseShard, type PhraseManifest, type PhraseShard } from './phrases';
+import { PhraseStore, parsePhraseManifest, parsePhraseShard, type PhraseManifest, type WordSense } from './phrases';
 import { sha256 } from './dictionary';
 
 const baseUrl = 'https://word.example/phrases/';
@@ -39,6 +39,42 @@ async function fixture() {
     files.set('/phrases/wiktionary-zh-test/m.json', body); files.set('/phrases/manifest.json', encode(manifest));
   };
   return { options, cache, cacheStorage, responses, files, fetcher, manifest, data, replace };
+}
+
+async function schemaTwoFixture(primeLegacy = false) {
+  const f = await fixture();
+  if (primeLegacy) await new PhraseStore(f.options).load('make', 'dict-v1');
+  const legacyKeys = [...f.responses.keys()];
+  const manifest = structuredClone(f.manifest);
+  manifest.schemaVersion = 2; manifest.version = 'lexical-zh-test';
+  for (const asset of Object.values(manifest.shards)) asset.file = asset.file.replace(f.manifest.version, manifest.version);
+  manifest.attribution.file = manifest.attribution.file.replace(f.manifest.version, manifest.version);
+  manifest.licenses.push(
+    { name: 'MIT', url: 'https://opensource.org/license/mit', file: 'licenses/ECDICT.txt', bytes: 100, sha256: 'e'.repeat(64) },
+    { name: 'WordNet-3.0', url: 'https://wordnet.princeton.edu/license-and-commercial-use', file: 'licenses/WordNet-3.0.txt', bytes: 100, sha256: 'f'.repeat(64) },
+  );
+  const source = manifest.sources[0]!;
+  manifest.sources.push(
+    { ...source, id: 'ecdict-bc015ed2e24a', name: 'ECDICT', license: 'MIT', url: 'https://raw.githubusercontent.com/skywind3000/ECDICT/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv', archive: { ...source.archive, file: 'sources/ecdict.csv.gz' } },
+    { ...source, id: 'omw-pwn30-2.0', name: 'Princeton WordNet 3.0', license: 'WordNet-3.0', url: 'https://github.com/omwn/omw-data/releases/tag/v2.0', archive: { ...source.archive, file: 'sources/wordnet.tar.xz' } },
+    { ...source, id: 'yanxai-editorial-pwn30-20261022', name: 'Editorial Chinese sense notes', license: 'WordNet-3.0', url: 'https://github.com/RyanCoreAI/word', archive: { ...source.archive, file: 'sources/editorial.jsonl.gz' } },
+  );
+  const sourceUrl = 'https://github.com/omwn/omw-data/blob/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/wn-data-eng.tab#L123';
+  const wordSense: WordSense = {
+    id: 'pwn30-01617192-v', pos: 'verb', meaning: '製作；創造', meaningBasis: 'editorial', definition: 'make or cause to be or to become', usage: '用於製作或創造事物的義項。',
+    sourceId: 'omw-pwn30-2.0', sourceUrl, editorialSourceId: 'yanxai-editorial-pwn30-20261022', tags: [],
+    substitutes: [{ text: 'create', meaning: '製作；創造', meaningBasis: 'shared-sense', relationBasis: 'exact-synset', sourceId: 'omw-pwn30-2.0', sourceUrl, tags: [] }],
+  };
+  const ecdictSourceUrl = 'https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L456';
+  const data = { make: { phrases: [
+    ...f.data.make.phrases,
+    { text: 'make a living', pos: 'phrase', sourceId: 'ecdict-bc015ed2e24a', sourceUrl: ecdictSourceUrl, tags: [], senses: [{ id: 'ecdict-line-456', meaning: '謀生', sourceId: 'ecdict-bc015ed2e24a', sourceUrl: ecdictSourceUrl, tags: [], substitutes: [] }] },
+  ], wordSenses: [wordSense] } };
+  const bytes = encode(data);
+  manifest.shards.m = { ...manifest.shards.m!, bytes: bytes.length, sha256: await sha256(bytes) };
+  f.files.set('/phrases/manifest.json', encode(manifest));
+  f.files.set('/phrases/lexical-zh-test/m.json', bytes); f.files.set('/phrases/lexical-zh-test/c.json', encode({}));
+  return { ...f, manifest: parsePhraseManifest(manifest), data, legacyKeys };
 }
 
 describe('lazy verified phrase supplements', () => {
@@ -103,7 +139,7 @@ describe('lazy verified phrase supplements', () => {
 
   it('validates limits, Chinese meanings, exact associations and strict object shapes', async () => {
     const f = await fixture();
-    const wrongToken = structuredClone(f.data) as PhraseShard;
+    const wrongToken = structuredClone(f.data);
     wrongToken.make!.phrases[0]!.text = 'take up';
     expect(() => parsePhraseShard(wrongToken, f.manifest, 'm')).toThrow();
     const tooMany = structuredClone(f.data); tooMany.make.phrases = Array(7).fill(f.data.make.phrases[0]);
@@ -182,5 +218,88 @@ describe('lazy verified phrase supplements', () => {
     const offline = vi.fn<typeof fetch>(async () => { throw new Error('offline'); });
     expect((await new PhraseStore({ ...f.options, fetcher: offline }).load('make', 'dict-v1')).manifest.version).toBe(updated.version);
     expect(before.every(key => f.responses.has(key))).toBe(true);
+  });
+});
+
+describe('schema 2 lexical sources and legacy cache compatibility', () => {
+  it('loads exact-synset word senses and mixed-license phrases without changing source meanings', async () => {
+    const f = await schemaTwoFixture();
+    const result = await new PhraseStore(f.options).load('make', 'dict-v1');
+    expect(result.phrases.map(phrase => phrase.text)).toEqual(['make up', 'make a living']);
+    expect(result.wordSenses[0]!.meaningBasis).toBe('editorial');
+    expect(result.wordSenses[0]!.definition).toBe('make or cause to be or to become');
+    expect(result.wordSenses[0]!.substitutes[0]).toMatchObject({ text: 'create', meaning: '製作；創造', meaningBasis: 'shared-sense', relationBasis: 'exact-synset' });
+    expect(result.manifest.licenses.map(license => license.name)).toEqual(['CC-BY-SA-4.0', 'MIT', 'WordNet-3.0']);
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads the original schema 1 catalog bytes offline and adds only in-memory defaults', async () => {
+    const f = await fixture();
+    const original: Record<string, unknown> = structuredClone(f.manifest); delete original.licenses;
+    f.files.set('/phrases/manifest.json', encode(original));
+    const first = await new PhraseStore(f.options).load('make', 'dict-v1');
+    expect(first.wordSenses).toEqual([]); expect(first.manifest.licenses).toEqual([first.manifest.license]);
+    const catalog = [...f.responses.entries()].find(([key]) => key.includes('/catalog-'))![1];
+    expect(await catalog.clone().json()).not.toHaveProperty('licenses');
+    const offline = vi.fn<typeof fetch>(async () => { throw new Error('offline'); });
+    expect(await new PhraseStore({ ...f.options, fetcher: offline }).load('make', 'dict-v1')).toEqual(first);
+    expect(await f.responses.get([...f.responses.keys()].find(key => key.includes('/m.json'))!)!.clone().json()).toEqual(f.data);
+  });
+
+  it('updates a legacy catalog to schema 2 while preserving all existing verified cache entries', async () => {
+    const f = await schemaTwoFixture(true);
+    const result = await new PhraseStore(f.options).load('make', 'dict-v1');
+    expect(result.manifest.schemaVersion).toBe(2); expect(result.wordSenses).toHaveLength(1);
+    expect(f.legacyKeys.every(key => f.responses.has(key))).toBe(true);
+    const offline = vi.fn<typeof fetch>(async () => { throw new Error('offline'); });
+    expect(await new PhraseStore({ ...f.options, fetcher: offline }).load('make', 'dict-v1')).toEqual(result);
+  });
+
+  it('rejects missing or conflicting per-source licenses and new sources in a legacy catalog', async () => {
+    const f = await schemaTwoFixture();
+    const missing: Record<string, unknown> = structuredClone(f.manifest); delete missing.licenses;
+    expect(() => parsePhraseManifest(missing)).toThrow();
+    expect(() => parsePhraseManifest({ ...f.manifest, licenses: f.manifest.licenses.filter(license => license.name !== 'WordNet-3.0') })).toThrow();
+    expect(() => parsePhraseManifest({ ...f.manifest, schemaVersion: 1 })).toThrow();
+    expect(() => parsePhraseManifest({ ...f.manifest, licenses: f.manifest.licenses.map(license => license.name === 'CC-BY-SA-4.0' ? { ...license, sha256: '0'.repeat(64) } : license) })).toThrow();
+    expect(() => parsePhraseManifest({ ...f.manifest, sources: [{ ...f.manifest.sources[0], license: 'unknown-license' }] })).toThrow();
+  });
+
+  it('pins content URLs to exact source repositories, commits and positive source lines', async () => {
+    const f = await schemaTwoFixture();
+    for (const sourceUrl of [
+      'https://github.com/omwn/omw-data/blob/main/wns/eng/wn-data-eng.tab#L123',
+      'https://github.com.evil.test/omwn/omw-data/blob/406bf83b3c507a3d1f26e88252d5d66893fd36bf/wns/eng/wn-data-eng.tab#L123',
+      f.data.make.wordSenses[0]!.sourceUrl.replace('#L123', '#L0'),
+    ]) {
+      const bad = structuredClone(f.data); bad.make.wordSenses[0]!.sourceUrl = sourceUrl;
+      expect(() => parsePhraseShard(bad, f.manifest, 'm')).toThrow();
+    }
+    const bad = structuredClone(f.data); bad.make.phrases[1]!.sourceUrl = bad.make.phrases[1]!.sourceUrl.replace('bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b', 'main');
+    expect(() => parsePhraseShard(bad, f.manifest, 'm')).toThrow();
+  });
+
+  it('rejects false editorial provenance, cross-sense substitutions and incorrect synset parts of speech', async () => {
+    const f = await schemaTwoFixture();
+    const mutations = [
+      { editorialSourceId: 'missing-editorial-source' }, { editorialSourceId: 'omw-pwn30-2.0' },
+      { sourceId: 'ecdict-bc015ed2e24a' }, { meaningBasis: 'shared-sense' }, { id: 'pwn30-01617192-n' },
+    ];
+    for (const mutation of mutations) { const bad = structuredClone(f.data); Object.assign(bad.make.wordSenses[0]!, mutation); expect(() => parsePhraseShard(bad, f.manifest, 'm')).toThrow(); }
+    const wrongMeaning = structuredClone(f.data); wrongMeaning.make.wordSenses[0]!.substitutes[0]!.meaning = '不相符的意思';
+    expect(() => parsePhraseShard(wrongMeaning, f.manifest, 'm')).toThrow();
+    const wrongRelation = structuredClone(f.data); Object.assign(wrongRelation.make.wordSenses[0]!.substitutes[0]!, { relationBasis: 'single-source-sense' });
+    expect(() => parsePhraseShard(wrongRelation, f.manifest, 'm')).toThrow();
+  });
+
+  it('bounds expanded sense arrays and rejects empty or duplicate lexical records', async () => {
+    const f = await schemaTwoFixture();
+    const oversized = structuredClone(f.data); oversized.make.wordSenses = Array(4).fill(f.data.make.wordSenses[0]);
+    expect(() => parsePhraseShard(oversized, f.manifest, 'm')).toThrow();
+    const substitutes = structuredClone(f.data); substitutes.make.wordSenses[0]!.substitutes = Array(5).fill(f.data.make.wordSenses[0]!.substitutes[0]);
+    expect(() => parsePhraseShard(substitutes, f.manifest, 'm')).toThrow();
+    expect(() => parsePhraseShard({ make: { phrases: [], wordSenses: [] } }, f.manifest, 'm')).toThrow();
+    const duplicated = structuredClone(f.data); duplicated.make.wordSenses.push(duplicated.make.wordSenses[0]!);
+    expect(() => parsePhraseShard(duplicated, f.manifest, 'm')).toThrow();
   });
 });

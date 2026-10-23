@@ -77,6 +77,33 @@ export interface DailyStudySummary extends StudyDay {
   words: DailyStudyWord[];
 }
 
+/** A real encounter retained for read-only browsing, separate from the undo journal. */
+export interface StudyTrailEntry {
+  id: number;
+  mode: Mode;
+  wordId: string;
+  groupNumber: number;
+  position: number;
+  action: AnswerResult | 'skip' | 'defer';
+  revealed: boolean;
+  recordedAt: number;
+}
+
+export interface DailyReviewEntry {
+  groupNumber: number;
+  completed: boolean;
+}
+
+export type DailyReview = Record<string, Record<Mode, Record<string, DailyReviewEntry>>>;
+
+export interface YesterdayReviewCounts {
+  total: number;
+  queued: number;
+  completed: number;
+  pending: number;
+  available: number;
+}
+
 // A bounded journal of deltas, never recursive copies of AppState.
 export interface UndoEntry {
   mode: Mode;
@@ -91,6 +118,9 @@ export interface UndoEntry {
   // Absent on entries from backups created before calendar tracking existed.
   activityDate?: string;
   previousDailyActivity?: DailyWordActivity | null;
+  studyTrailId?: number;
+  evictedStudyTrailEntry?: StudyTrailEntry;
+  dailyReviewChange?: { date: string; previous: DailyReviewEntry | null };
 }
 
 export interface AppState {
@@ -103,6 +133,8 @@ export interface AppState {
   skipped: string[];
   history: UndoEntry[];
   dailyActivity: DailyActivity;
+  studyTrail: StudyTrailEntry[];
+  dailyReview: DailyReview;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

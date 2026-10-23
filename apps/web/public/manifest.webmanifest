@@ -2,7 +2,7 @@
   "id": "./",
   "name": "背单词 · Word",
   "short_name": "背单词",
-  "description": "看词记忆与听音辨词，本机保存学习进度。",
+  "description": "看词记忆、听音辨词、短语与语音复述，本机保存学习记录。",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

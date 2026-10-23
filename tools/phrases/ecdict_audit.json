@@ -1,0 +1,209 @@
+{
+  "sourceSha256": "1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf",
+  "method": "Editorial source-reading spot check, evenly spaced across the first generated selected list plus all four explicit additions; not a claim that every candidate was reviewed. Exact source meanings retained or the whole entry excluded.",
+  "items": [
+    {
+      "text": "a bit",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L705",
+      "sourceMeaning": "一点儿；有一点儿",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "as well",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L49937",
+      "sourceMeaning": "也",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "betting shop",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L79883",
+      "sourceMeaning": "n. <英>彩票销售点",
+      "decision": "exclude",
+      "note": "Source Chinese lottery sales point is too narrow for a general betting shop; omit from teaching selection."
+    },
+    {
+      "text": "bring forward",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L98646",
+      "sourceMeaning": "提出, 提前\n[经] 结转",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "by means of",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L106434",
+      "sourceMeaning": "依靠",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "carry out",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L116962",
+      "sourceMeaning": "进行, 实现, 贯彻, 执行\n[经] 进行(到底), 执行, 落实",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "company car",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L151247",
+      "sourceMeaning": "n. 公司汽车",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "department store",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L191720",
+      "sourceMeaning": "百货公司\n[经] 百货商店",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "economic growth",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L221603",
+      "sourceMeaning": "[经] 经济成长, 经济增长",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "fact of life",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L249879",
+      "sourceMeaning": " 无法更改的事实",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "food poisoning",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L269469",
+      "sourceMeaning": "na. 食物中毒",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "go up",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L298540",
+      "sourceMeaning": "上升, 兴建",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "head way",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L316545",
+      "sourceMeaning": " 通风联络巷道",
+      "decision": "exclude",
+      "note": "Spacing suggests common headway, but source Chinese is a specialist ventilation passage; do not present as a general learner phrase."
+    },
+    {
+      "text": "icing sugar",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L341086",
+      "sourceMeaning": "n. 糖粉; 糖霜",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "instead of",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L355845",
+      "sourceMeaning": "代替",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "look after",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L407723",
+      "sourceMeaning": "目送, 照顾, 关心",
+      "decision": "exclude",
+      "note": "Leading source Chinese watch after/see off is liable to obscure the usual look-after-care meaning; omit this ECDICT record rather than silently rewrite."
+    },
+    {
+      "text": "merchant bank",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L433625",
+      "sourceMeaning": " 商业银行",
+      "decision": "exclude",
+      "note": "Source Chinese commercial bank does not distinguish the merchant/investment-banking meaning; omit instead of repairing the source."
+    },
+    {
+      "text": "natural history",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L464657",
+      "sourceMeaning": "n. 博物学, 有关博物学的书",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "one another",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L490401",
+      "sourceMeaning": "彼此",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "pocket money",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L539010",
+      "sourceMeaning": "零用钱\n[经] 零用钱",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "proportional representation",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L559256",
+      "sourceMeaning": "n. （选举上的）比例代表制",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "rule of law",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L605287",
+      "sourceMeaning": "n. 法规, 法治",
+      "decision": "exclude",
+      "note": "Source mixes regulations and rule-of-law meanings; omit from this teaching supplement rather than narrow the original."
+    },
+    {
+      "text": "share index",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L629774",
+      "sourceMeaning": " 股票指数",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "spare part",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L649832",
+      "sourceMeaning": "备件",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "stumbling block",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L669164",
+      "sourceMeaning": "障碍物, 绊脚石",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "take into account",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L685321",
+      "sourceMeaning": "重视, 考虑",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "throw sth away",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L701495",
+      "sourceMeaning": "扔掉, 浪费掉, 放过机会",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "upside down",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L734670",
+      "sourceMeaning": "颠倒着, 混乱",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    },
+    {
+      "text": "yours truly",
+      "sourceUrl": "https://github.com/skywind3000/ECDICT/blob/bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b/ecdict.csv#L767553",
+      "sourceMeaning": "鄙人, 我",
+      "decision": "retain-source-entry",
+      "note": "Source Chinese is usable as the displayed whole entry; no sense-specific synonym inference."
+    }
+  ]
+}

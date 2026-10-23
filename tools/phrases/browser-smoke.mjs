@@ -65,12 +65,12 @@ try {
     return { phrase: 'by the way', substitute: 'incidentally', realChineseSense: true };
   });
   await check('missing source record shows a truthful empty state', async () => {
-    await openWord('elaborate');
+    await openWord('ask');
     await page.getByText('这个词暂无经过筛选的短语资料。不会自动拼凑搭配或近义词。', { exact: true }).waitFor();
     assert.equal(await page.locator('.phrase-item').count(), 0);
     await shot('03-empty-phrase-data');
     await close();
-    return { word: 'elaborate', inventedPhrases: 0 };
+    return { word: 'ask', inventedPhrases: 0 };
   });
   await check('corrupt download is rejected and UI retry restores verified data', async () => {
     const before = await state();
@@ -81,7 +81,7 @@ try {
     assert.deepEqual(await state(), before);
     await context.unroute('**/phrases/**/m.json*');
     await page.getByRole('button', { name: '重试', exact: true }).click();
-    await page.locator('.phrase-item').first().waitFor();
+    await page.getByRole('dialog', { name: '单词详情', exact: true }).locator('.phrase-item').first().waitFor();
     assert.deepEqual(await state(), before);
     await shot('04-make-after-retry');
     await close();
