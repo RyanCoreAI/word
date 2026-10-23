@@ -1,11 +1,12 @@
 # Reproducible US English audio build
 
-This required build-time pipeline generates real synthetic speech for all 19,106
+This historical optional pipeline generates real synthetic speech for all 19,106
 words in the current checked study list. It does not generate the 770,611-entry
 dictionary, contact a speech API, require an account, or run a model in the browser.
-The browser receives versioned MP3 packs from the same origin as the application.
-The default US voice depends on these assets, and `npm run build` fails if the
-complete checked audio catalog is absent.
+The current application uses device-local voices only, preferring Samantha.
+It does not request or deploy these MP3 packs, and `npm run build` no longer
+requires the model or generated catalog. The pipeline remains for provenance
+and reproducibility of the earlier implementation.
 
 ## Requirements and setup
 

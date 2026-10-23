@@ -20,6 +20,7 @@ export interface Settings {
   voiceURI: string;
   rate: number;
   autoSpeak: boolean;
+  skipHintSeen: boolean;
 }
 
 export interface WordProgress {
@@ -49,6 +50,31 @@ export interface ModeState {
   groupNumber: number;
 }
 
+export interface ActivityCounts {
+  known: number;
+  unknown: number;
+}
+
+/** Real answers grouped by the local date supplied at answer time. */
+export type DailyWordActivity = Record<Mode, ActivityCounts>;
+export type DailyActivity = Record<string, Record<string, DailyWordActivity>>;
+
+export interface StudyDay {
+  date: string;
+  wordCount: number;
+  known: number;
+  unknown: number;
+}
+
+export interface DailyStudyWord extends ActivityCounts {
+  wordId: string;
+  modes: Mode[];
+}
+
+export interface DailyStudySummary extends StudyDay {
+  words: DailyStudyWord[];
+}
+
 // A bounded journal of deltas, never recursive copies of AppState.
 export interface UndoEntry {
   mode: Mode;
@@ -60,6 +86,9 @@ export interface UndoEntry {
   previousOtherSession: StudySession | null;
   previousOtherGroupNumber: number;
   wasSkipped: boolean;
+  // Absent on entries from backups created before calendar tracking existed.
+  activityDate?: string;
+  previousDailyActivity?: DailyWordActivity | null;
 }
 
 export interface AppState {
@@ -71,6 +100,7 @@ export interface AppState {
   modes: Record<Mode, ModeState>;
   skipped: string[];
   history: UndoEntry[];
+  dailyActivity: DailyActivity;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -81,6 +111,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceURI: '',
   rate: 0.9,
   autoSpeak: true,
+  skipHintSeen: false,
 };
 
 export const MODES: readonly Mode[] = ['look', 'listen'];

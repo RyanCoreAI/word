@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isLocalDateKey } from './activity';
 import type { AppState, StudySession, Word, WordProgress } from './types';
 
 export const MAX_WORDS = 1_000_000;
@@ -7,6 +8,13 @@ const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const counter = z.number().int().nonnegative().max(10_000_000);
 const idSchema = z.string().min(1).max(256).refine(value => value !== '__proto__', 'Invalid word identifier');
 const idsSchema = z.array(idSchema).max(MAX_WORDS).refine(ids => new Set(ids).size === ids.length, 'Duplicate word identifiers');
+export const localDateKeySchema = z.string().refine(isLocalDateKey, 'Invalid local calendar date');
+const activityCountsSchema = z.object({ known: counter, unknown: counter }).strict();
+export const dailyWordActivitySchema = z.object({ look: activityCountsSchema, listen: activityCountsSchema }).strict()
+  .refine(value => value.look.known + value.look.unknown + value.listen.known + value.listen.unknown > 0, 'Daily word has no answers');
+const dailyActivitySchema = z.record(localDateKeySchema, z.record(idSchema, dailyWordActivitySchema)
+  .refine(value => Object.keys(value).length > 0 && Object.keys(value).length <= MAX_WORDS, 'Invalid daily word count'))
+  .refine(value => Object.keys(value).length <= 100_000, 'Too many calendar dates');
 
 export const wordSchema = z.object({
   id: idSchema, word: z.string().min(1).max(500), translation: z.string().max(100_000),
@@ -19,6 +27,7 @@ export const settingsSchema = z.object({
   skipBasic: z.boolean(), deck: z.enum(['all', 'cet4', 'cet6', 'ky', 'toefl', 'ielts', 'gre']),
   accent: z.enum(['en-US', 'en-GB']), voiceURI: z.string().max(2_000),
   rate: z.number().min(0.5).max(1.5), autoSpeak: z.boolean(),
+  skipHintSeen: z.boolean().default(false),
 }).strict();
 
 export const wordProgressSchema = z.object({
@@ -54,13 +63,18 @@ export const undoEntrySchema = z.object({
   previousProgress: wordProgressSchema.nullable(), previousSession: sessionSchema,
   previousGroupNumber: integer, previousOtherSession: sessionSchema.nullable(), previousOtherGroupNumber: integer,
   wasSkipped: z.boolean(),
-}).strict();
+  activityDate: localDateKeySchema.optional(), previousDailyActivity: dailyWordActivitySchema.nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if ((value.activityDate === undefined) !== (value.previousDailyActivity === undefined)) ctx.addIssue({ code: 'custom', message: 'Incomplete calendar undo snapshot' });
+  if (value.activityDate !== undefined && value.action !== 'known' && value.action !== 'unknown') ctx.addIssue({ code: 'custom', message: 'Only answers update the calendar' });
+});
 
 export const appStateSchema = z.object({
   schemaVersion: z.literal(1), dictionaryVersion: z.string().min(1).max(200), revision: integer, updatedAt: integer,
   settings: settingsSchema,
   modes: z.object({ look: modeStateSchema, listen: modeStateSchema }).strict(),
   skipped: idsSchema, history: z.array(undoEntrySchema).max(20),
+  dailyActivity: dailyActivitySchema.default({}),
 }).strict();
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -102,6 +116,28 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
   // Replay inverse deltas on small mutable maps to reject forged/corrupt undo stacks.
   const progressByMode = { look: { ...state.modes.look.progress }, listen: { ...state.modes.listen.progress } };
   const skipped = new Set(state.skipped);
+  const dailyActivity = { ...state.dailyActivity };
+  const checkActivityTotals = (): void => {
+    const totals: Record<string, { look: { known: number; unknown: number }; listen: { known: number; unknown: number } }> = {};
+    for (const day of Object.values(dailyActivity)) {
+      for (const [id, activity] of Object.entries(day)) {
+        reference(id);
+        const sum = Object.prototype.hasOwnProperty.call(totals, id) ? totals[id]! : { look: { known: 0, unknown: 0 }, listen: { known: 0, unknown: 0 } };
+        for (const mode of ['look', 'listen'] as const) {
+          sum[mode].known += activity[mode].known;
+          sum[mode].unknown += activity[mode].unknown;
+        }
+        totals[id] = sum;
+      }
+    }
+    for (const [id, sum] of Object.entries(totals)) {
+      for (const mode of ['look', 'listen'] as const) {
+        const progress = Object.prototype.hasOwnProperty.call(progressByMode[mode], id) ? progressByMode[mode][id] : undefined;
+        assert(sum[mode].known <= (progress?.rightCount ?? 0) && sum[mode].unknown <= (progress?.wrongCount ?? 0), '日历次数超过真实作答记录');
+      }
+    }
+  };
+  checkActivityTotals();
   for (const entry of [...state.history].reverse()) {
     reference(entry.wordId);
     checkSession(entry.previousSession, entry.previousGroupNumber);
@@ -128,8 +164,24 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
     }
     if (before) progressByMode[entry.mode][entry.wordId] = before;
     else delete progressByMode[entry.mode][entry.wordId];
+    if (entry.activityDate !== undefined && entry.previousDailyActivity !== undefined) {
+      const day = dailyActivity[entry.activityDate];
+      const activity = day && Object.prototype.hasOwnProperty.call(day, entry.wordId) ? day[entry.wordId] : undefined;
+      assert(activity, '撤销记录缺少日历作答');
+      const previousActivity = entry.previousDailyActivity;
+      for (const mode of ['look', 'listen'] as const) {
+        assert(activity[mode].known === (previousActivity?.[mode].known ?? 0) + Number(mode === entry.mode && entry.action === 'known'), '撤销日历认识次数不一致');
+        assert(activity[mode].unknown === (previousActivity?.[mode].unknown ?? 0) + Number(mode === entry.mode && entry.action === 'unknown'), '撤销日历错误次数不一致');
+      }
+      const restoredDay = { ...day };
+      if (previousActivity) restoredDay[entry.wordId] = previousActivity;
+      else delete restoredDay[entry.wordId];
+      if (Object.keys(restoredDay).length) dailyActivity[entry.activityDate] = restoredDay;
+      else delete dailyActivity[entry.activityDate];
+    }
     if (!entry.wasSkipped) skipped.delete(entry.wordId);
   }
+  checkActivityTotals();
   return state;
 }
 

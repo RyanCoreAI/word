@@ -46,6 +46,44 @@ describe('durable learning state', () => {
     expect((await first.readState(words, 'v1'))?.revision).toBe(1);
   });
 
+  it('preserves recorded calendar dates through IndexedDB reopen and backup restore', async () => {
+    const name = `calendar-${databaseCounter++}`;
+    const db = await open(name);
+    const initial = createInitialState('v1', 1);
+    await db.saveState(initial, null, words, 'v1');
+    const active = ensureSession(initial, words, 'look', 2);
+    await db.saveState(active, 0, words, 'v1');
+    const answered = answer(active, 'look', 'unknown', getCurrentToken(active, 'look'), 3, '2026-10-21');
+    await db.saveState(answered, 1, words, 'v1');
+    db.close();
+    const reopened = await open(name);
+    expect((await reopened.readState(words, 'v1'))?.dailyActivity['2026-10-21']?.abandon?.look.unknown).toBe(1);
+    const backup = parseBackup(exportBackup(answered, words, 'v1', 4), words, 'v1');
+    expect(backup.dailyActivity).toEqual(answered.dailyActivity);
+    expect(backup.history).toEqual(answered.history);
+    const restored = await reopened.replaceStateFromBackup(backup, 2, words, 'v1', 5);
+    expect(restored.dailyActivity).toEqual(answered.dailyActivity);
+  });
+
+  it('reads an existing schema v1 database and backup without fabricating legacy calendar dates', async () => {
+    const name = `legacy-calendar-${databaseCounter++}`;
+    const db = await open(name);
+    const active = ensureSession(createInitialState('v1', 1), words, 'look', 2);
+    const answered = answer(active, 'look', 'known', getCurrentToken(active, 'look'), 3);
+    const legacy = JSON.parse(JSON.stringify(answered)) as Record<string, unknown>;
+    delete legacy.dailyActivity;
+    for (const entry of legacy.history as Record<string, unknown>[]) {
+      delete entry.activityDate;
+      delete entry.previousDailyActivity;
+    }
+    await putRaw(name, legacy);
+    const read = await db.readState(words, 'v1');
+    expect(read?.modes).toEqual(answered.modes);
+    expect(read?.dailyActivity).toEqual({});
+    const backup = JSON.stringify({ format: 'yanxai-word-backup', version: 1, exportedAt: 4, state: legacy });
+    expect(parseBackup(backup, words, 'v1').dailyActivity).toEqual({});
+  });
+
   it('rejects incompatible backups and stale restores without replacing progress', async () => {
     const db = await open();
     const initial = createInitialState('v1', 1);

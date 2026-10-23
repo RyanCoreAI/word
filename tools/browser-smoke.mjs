@@ -166,6 +166,7 @@ try {
   assert.equal(afterKnown.modes.look.progress[knownId].rightCount, 1);
   assert.equal(Object.keys(afterKnown.modes.look.progress).length, 2);
   check(step, { word: knownId, cursor: 2 });
+  await page.locator('.known-confirmation').waitFor({ state: 'detached' });
 
   step = 'undo restores exact previous learning position';
   await page.getByLabel('学习操作', { exact: true }).click();
@@ -344,6 +345,7 @@ try {
   for (let cursor = 1; cursor < 10; cursor += 1) {
     await waitState(s => s.modes.look.session.cursor === cursor);
     await click('认识');
+    await page.locator('.known-confirmation').waitFor({ state: 'detached' });
   }
   const summaryState = await waitState(s => s.modes.look.session.status === 'finished');
   assert.equal(summaryState.modes.look.session.known, 9);

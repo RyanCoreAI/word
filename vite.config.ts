@@ -5,6 +5,6 @@ export default defineConfig({
   root: 'apps/web',
   base: './',
   plugins: [react()],
-  build: { outDir: '../../dist', emptyOutDir: true },
+  build: { outDir: '../../dist', emptyOutDir: true, copyPublicDir: false },
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
 });

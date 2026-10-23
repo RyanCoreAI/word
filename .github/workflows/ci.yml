@@ -27,12 +27,6 @@ jobs:
       - run: npm test
       - run: python -m unittest discover -s tools/pipeline -p 'test_*.py'
       - run: python tools/pipeline/build.py
-      - run: sudo apt-get update && sudo apt-get install --yes ffmpeg
-      - run: python -m venv work/piper-eval/venv
-      - run: work/piper-eval/venv/bin/python -m pip install -r tools/audio/requirements.txt
-      - run: work/piper-eval/venv/bin/python tools/audio/download.py
-      - run: work/piper-eval/venv/bin/python -u tools/audio/build.py
-      - run: work/piper-eval/venv/bin/python tools/audio/build.py --verify
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:

@@ -208,14 +208,18 @@ try {
 
   await check('offline prefix search uses the downloaded full dictionary', async () => {
     await context.setOffline(true); await page.reload(); await page.locator('.continue').waitFor();
-    await navigate('生词本'); await page.getByRole('button', { name: '词典', exact: true }).click();
-    await page.getByRole('searchbox', { name: '输入英文前缀查词' }).fill('bank');
-    await page.locator('.it .w').filter({ hasText: /^bank(?:\/|$)/ }).first().waitFor();
-    const matches = await page.locator('.it .w').evaluateAll(nodes => nodes.map(node =>
+    await page.getByRole('searchbox', { name: '搜索词典 · 输入英文单词', exact: true }).fill('bank');
+    const results = page.locator('.home-search-results');
+    await results.locator('.it .w').filter({ hasText: /^bank(?:\/|$)/ }).first().waitFor();
+    const matches = await results.locator('.it .w').evaluateAll(nodes => nodes.map(node =>
       [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).map(child => child.textContent).join('').trim()));
     assert.ok(matches.includes('bank')); assert.ok(matches.every(word => word.toLowerCase().startsWith('bank')));
+    const study = JSON.parse((await databaseRead(page, 'cache', 'study')).text);
+    const studySpellings = new Set(study.map(word => word.word));
+    const fullDictionaryOnly = matches.filter(word => !studySpellings.has(word));
+    assert.ok(fullDictionaryOnly.length > 0, 'Search must include real downloaded dictionary entries outside the study pack');
     await page.screenshot({ path: path.join(output, 'offline-prefix-search.png'), fullPage: true });
-    return { prefix: 'bank', returned: matches.length, first: matches.slice(0, 5) };
+    return { prefix: 'bank', returned: matches.length, first: matches.slice(0, 5), fullDictionaryOnly: fullDictionaryOnly.slice(0, 5) };
   });
 
   await check('offline license navigation returns license text rather than the app shell', async () => {

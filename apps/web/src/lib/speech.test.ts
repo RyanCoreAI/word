@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SpeechController, selectVoice } from './speech';
-import type { AudioClip } from './audio';
 
 function voice(uri: string, lang: string, localService = true): SpeechSynthesisVoice {
   return { voiceURI: uri, name: uri, lang, localService, default: false };
@@ -143,102 +142,82 @@ describe('device speech lifecycle', () => {
   });
 });
 
-class Media {
-  src = ''; preload = ''; playbackRate = 1;
-  onplaying: HTMLAudioElement['onplaying'] = null;
-  onended: HTMLAudioElement['onended'] = null;
-  onerror: HTMLAudioElement['onerror'] = null;
-  play = vi.fn(async () => {}); pause = vi.fn(); load = vi.fn(); removeAttribute = vi.fn();
-  event(type: 'playing' | 'ended') { this[`on${type}`]?.call(this as unknown as HTMLAudioElement, new Event(type)); }
-}
-const clip: AudioClip = { blob: new Blob(['verified test transport bytes'], { type: 'audio/mpeg' }), duration: 0.5, label: 'Piper sample' };
-const hostedRequest = { ...request, dictionaryVersion: 'dict-v1' };
-function hosted(synthesis: Synth | null = null, getClip = vi.fn(async () => clip)) {
-  const media: Media[] = []; const visibility = new Visibility();
-  const controller = new SpeechController({ synthesis, visibility, createUtterance, audioStore: { getClip }, createAudio: () => { const item = new Media(); media.push(item); return item as unknown as HTMLAudioElement; } });
+function configured(synthesis: Synth | null = null) {
+  const getClip = vi.fn(); const createAudio = vi.fn();
+  const controller = new SpeechController({ synthesis, visibility: null, createUtterance,
+    audioBaseUrl: 'https://word.example/audio/', audioStore: { getClip }, createAudio });
   controllers.push(controller);
-  return { controller, getClip, media, visibility };
+  return { controller, getClip, createAudio };
 }
 
-describe('self-hosted playback lifecycle', () => {
-  it('uses hosted audio by default even without device voices, and gates on playing only', async () => {
-    const f = hosted();
-    f.controller.speak({ ...hostedRequest, rate: 0.65, studyWordIndex: 42 });
-    await Promise.resolve(); await Promise.resolve();
-    expect(f.getClip).toHaveBeenCalledWith(hostedRequest.wordId, 'dict-v1', expect.any(AbortSignal), 42);
-    expect(f.media).toHaveLength(1);
-    expect(f.media[0]!.playbackRate).toBe(0.65);
-    expect(f.controller.getState()).toMatchObject({ status: 'starting', played: false, source: 'hosted' });
-    f.media[0]!.event('playing');
-    expect(f.controller.getState()).toMatchObject({ status: 'speaking', played: true, sourceLabel: 'Piper sample' });
-    f.media[0]!.event('ended');
-    expect(f.controller.getState()).toMatchObject({ status: 'ended', played: true });
-    expect(f.media[0]!.pause).toHaveBeenCalled();
+describe('local Samantha preference without network audio', () => {
+  const samantha = { ...voice('com.apple.voice.compact.en-US.Samantha', 'en-US'), name: 'Samantha' };
+  const remote = { ...voice('remote-samantha', 'en-US', false), name: 'Samantha' };
+  const hostedRequest = { ...request, dictionaryVersion: 'dict-v1', studyWordIndex: 42 };
+
+  it('prefers the actual local Samantha over another system default and normalizes voice languages', () => {
+    const localDefault = { ...us, default: true };
+    const underscored = { ...samantha, lang: 'en_US' };
+    expect(selectVoice([remote, localDefault, underscored], 'en-US')).toBe(underscored);
+    expect(selectVoice([localDefault, { ...samantha, name: 'Samantha (Enhanced)' }], 'en-US')?.name).toBe('Samantha (Enhanced)');
+    expect(selectVoice([localDefault, gb], 'en-GB')).toBe(gb);
+    expect(selectVoice([localDefault, samantha], 'en-US', us.voiceURI)).toBe(localDefault);
   });
 
-  it('respects explicit native voice and UK accent without requesting hosted audio', () => {
-    const synthesis = new Synth(); const f = hosted(synthesis);
-    f.controller.speak({ ...hostedRequest, voiceURI: us.voiceURI });
+  it('falls back only to an installed local voice of the selected accent when Samantha is absent', () => {
+    expect(selectVoice([remote, us, gb], 'en-US')).toBe(us);
+    expect(selectVoice([remote, gb], 'en-US')).toBeNull();
+    expect(selectVoice([remote, us], 'en-US', remote.voiceURI)).toBeNull();
+    const synthesis = new Synth(); synthesis.voices = [remote, us, gb];
+    const { controller, getClip, createAudio } = configured(synthesis);
+    expect(controller.getVoices()).toEqual([us, gb]);
+    expect(controller.getVoices('en-US')).toEqual([us]);
+    controller.speak(hostedRequest);
     expect(synthesis.spoken[0]!.voice).toBe(us);
-    f.controller.speak({ ...hostedRequest, accent: 'en-GB' });
-    expect(synthesis.spoken[1]!.voice).toBe(gb);
-    f.controller.speak({ ...hostedRequest, studyWordIndex: -1 });
-    expect(synthesis.spoken[2]!.voice).toBe(us);
-    expect(f.getClip).not.toHaveBeenCalled();
+    expect(getClip).not.toHaveBeenCalled(); expect(createAudio).not.toHaveBeenCalled();
   });
 
-  it('falls back to a real same-accent device voice after file failure, without unlocking early', async () => {
-    const synthesis = new Synth(); const f = hosted(synthesis, vi.fn(async () => { throw new Error('offline pack missing'); }));
-    f.controller.speak(hostedRequest); await Promise.resolve(); await Promise.resolve();
+  it('uses local Samantha for existing dictionary requests without downloading an audio pack', () => {
+    const synthesis = new Synth(); synthesis.voices = [us, samantha];
+    const { controller, getClip, createAudio } = configured(synthesis);
+    controller.speak({ ...hostedRequest, rate: 0.65 });
     expect(synthesis.spoken).toHaveLength(1);
-    expect(f.controller.getState()).toMatchObject({ played: false, source: 'device' });
+    expect(synthesis.spoken[0]!.voice).toBe(samantha);
+    expect(synthesis.spoken[0]!.rate).toBe(0.65);
+    expect(controller.getState()).toMatchObject({ status: 'starting', played: false, source: 'device', sourceLabel: 'Samantha' });
     start(synthesis.spoken[0]!);
-    expect(f.controller.getState()).toMatchObject({ played: true, voice: us });
+    expect(controller.getState()).toMatchObject({ status: 'speaking', played: true, sourceLabel: 'Samantha' });
+    end(synthesis.spoken[0]!);
+    expect(controller.getState()).toMatchObject({ status: 'ended', played: true });
+    expect(getClip).not.toHaveBeenCalled(); expect(createAudio).not.toHaveBeenCalled();
   });
 
-  it('invalidates pending fetches and stale media callbacks when switching words', async () => {
-    let resolveFirst: (value: AudioClip) => void = () => {};
-    const pending = new Promise<AudioClip>(resolve => { resolveFirst = resolve; });
-    const getClip = vi.fn().mockReturnValueOnce(pending).mockResolvedValue(clip);
-    const f = hosted(null, getClip);
-    f.controller.speak(hostedRequest);
-    const firstSignal = getClip.mock.calls[0]![2] as AbortSignal;
-    f.controller.speak({ ...hostedRequest, wordId: 'bank', word: 'bank' });
-    resolveFirst(clip); await Promise.resolve(); await Promise.resolve();
-    expect(firstSignal.aborted).toBe(true); expect(f.media).toHaveLength(1);
-    const oldPlaying = f.media[0]!.onplaying;
-    f.controller.speak({ ...hostedRequest, wordId: 'way', word: 'way' });
-    oldPlaying?.call(f.media[0] as unknown as HTMLAudioElement, new Event('playing'));
-    expect(f.controller.getState()).toMatchObject({ wordId: 'way', played: false });
-    await Promise.resolve(); await Promise.resolve();
-    f.media[1]!.event('playing');
-    f.visibility.hidden = true; f.visibility.dispatchEvent(new Event('visibilitychange'));
-    expect(f.media[1]!.pause).toHaveBeenCalled();
-    expect(f.controller.getState()).toMatchObject({ status: 'idle', played: false });
+  it('does not substitute Piper or a remote voice when local speech is unavailable', () => {
+    const synthesis = new Synth(); synthesis.voices = [remote, voice('Chinese', 'zh-CN')];
+    const { controller, getClip, createAudio } = configured(synthesis);
+    controller.speak(hostedRequest);
+    expect(controller.getState()).toMatchObject({ status: 'unavailable', played: false, voice: null });
+    expect(controller.getState().error).toContain('Samantha');
+    expect(synthesis.spoken).toHaveLength(0);
+    expect(getClip).not.toHaveBeenCalled(); expect(createAudio).not.toHaveBeenCalled();
   });
 
-  it('treats rejected play and ended-without-playing as failures', async () => {
-    const f = hosted();
-    f.controller.speak(hostedRequest); await Promise.resolve(); await Promise.resolve();
-    f.media[0]!.event('ended');
-    expect(f.controller.getState()).toMatchObject({ status: 'error', played: false });
-    const controller = new SpeechController({ synthesis: null, visibility: null, audioStore: { getClip: async () => clip }, createAudio: () => {
-      const media = new Media(); media.play.mockRejectedValue(new DOMException('Blocked', 'NotAllowedError')); return media as unknown as HTMLAudioElement;
-    } });
-    controllers.push(controller); controller.speak(hostedRequest);
-    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    expect(controller.getState()).toMatchObject({ status: 'error', played: false });
-    expect(controller.getState().error).toContain('点击重听');
+  it('rejects a missing or remote explicitly selected voice instead of silently replacing it', () => {
+    const synthesis = new Synth(); synthesis.voices = [samantha, remote];
+    const { controller, getClip } = configured(synthesis);
+    for (const voiceURI of ['missing', remote.voiceURI]) {
+      controller.speak({ ...hostedRequest, voiceURI });
+      expect(controller.getState()).toMatchObject({ status: 'unavailable', played: false });
+      expect(controller.getState().error).toContain('所选本机声音');
+    }
+    expect(synthesis.spoken).toHaveLength(0); expect(getClip).not.toHaveBeenCalled();
   });
 
-  it('bounds an unresponsive fetch and never plays its late result', async () => {
-    vi.useFakeTimers(); let resolve: (value: AudioClip) => void = () => {};
-    const f = hosted(null, vi.fn(() => new Promise<AudioClip>(done => { resolve = done; })));
-    f.controller.speak(hostedRequest); vi.advanceTimersByTime(15_001);
-    expect(f.controller.getState()).toMatchObject({ status: 'starting', played: false });
-    vi.advanceTimersByTime(15_000);
-    expect(f.controller.getState()).toMatchObject({ status: 'error', played: false });
-    resolve(clip); await Promise.resolve(); await Promise.resolve();
-    expect(f.media).toHaveLength(0);
+  it('never fetches hosted audio when the browser has no speech synthesis API', () => {
+    const { controller, getClip, createAudio } = configured();
+    controller.speak(hostedRequest);
+    expect(controller.getState()).toMatchObject({ status: 'unavailable', played: false });
+    expect(controller.getState().error).toContain('不支持');
+    expect(getClip).not.toHaveBeenCalled(); expect(createAudio).not.toHaveBeenCalled();
   });
 });

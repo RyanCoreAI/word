@@ -135,6 +135,19 @@ describe('learning flow', () => {
 });
 
 describe('undo and skipping', () => {
+  it('marks permanent-skip guidance as seen atomically and keeps it seen after undo', () => {
+    const before = initial();
+    expect(before.settings.skipHintSeen).toBe(false);
+    const skipped = skipWord(before, 'look', getCurrentToken(before, 'look'), time++);
+    expect(skipped.settings.skipHintSeen).toBe(true);
+    expect(skipped.skipped).toEqual(['word-0']);
+    const undone = undo(validated(skipped), time++);
+    expect(undone.settings.skipHintSeen).toBe(true);
+    expect(undone.skipped).toEqual([]);
+    expect(undone.modes).toEqual(before.modes);
+    validated(undone);
+  });
+
   it('undo unknown restores hidden state and removes the newly created counters', () => {
     const before = initial();
     const after = undo(next(respond(before, 'unknown')), time++);
@@ -216,6 +229,16 @@ describe('undo and skipping', () => {
 });
 
 describe('external state validation', () => {
+  it('defaults missing legacy schema v1 skip guidance to unseen without changing progress', () => {
+    const state = respond(initial(), 'unknown');
+    const legacy = JSON.parse(JSON.stringify(state)) as { settings: Record<string, unknown> };
+    delete legacy.settings.skipHintSeen;
+    const restored = parseAppState(legacy, words, VERSION);
+    expect(restored.settings.skipHintSeen).toBe(false);
+    expect(restored.modes).toEqual(state.modes);
+    expect(restored.history).toEqual(state.history);
+  });
+
   it('accepts real words whose identifiers match object prototype property names', () => {
     const fixtures = [{ ...words[0]!, id: 'constructor', word: 'constructor' }];
     let state = initial(fixtures);

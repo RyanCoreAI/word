@@ -1,5 +1,6 @@
 import { DEFAULT_SETTINGS, MODES } from './types';
 import { settingsSchema } from './schemas';
+import { cloneDailyWordActivity, getLocalDateKey, isLocalDateKey } from './activity';
 import type { AppState, AnswerResult, Mode, Settings, StudySession, UndoEntry, Word, WordProgress } from './types';
 
 const own = <T>(record: Record<string, T>, key: string): T | undefined =>
@@ -23,7 +24,7 @@ export function createInitialState(dictionaryVersion: string, now: number): AppS
       look: { progress: {}, session: null, groupNumber: 0 },
       listen: { progress: {}, session: null, groupNumber: 0 },
     },
-    skipped: [], history: [],
+    skipped: [], history: [], dailyActivity: {},
   };
 }
 
@@ -104,9 +105,11 @@ function activeItem(state: AppState, mode: Mode, expectedToken: string | null): 
   return id ? { session, id } : null;
 }
 
-export function answer(state: AppState, mode: Mode, result: AnswerResult, expectedToken: string | null, now: number): AppState {
+export function answer(state: AppState, mode: Mode, result: AnswerResult, expectedToken: string | null, now: number, localDateKey?: string): AppState {
   const active = activeItem(state, mode, expectedToken);
   if (!active || active.session.revealed || state.skipped.includes(active.id)) return state;
+  const activityDate = localDateKey ?? getLocalDateKey(now);
+  if (!isLocalDateKey(activityDate)) throw new Error('Invalid local date');
   const { session, id } = active;
   const modeState = state.modes[mode];
   const previous = own(modeState.progress, id);
@@ -137,10 +140,18 @@ export function answer(state: AppState, mode: Mode, result: AnswerResult, expect
     nextSession.cursor += 1;
     nextSession = advancePastSkipped(nextSession, new Set(state.skipped));
   }
+  const day = state.dailyActivity[activityDate] ?? {};
+  const previousDailyActivity = own(day, id);
+  const activity = previousDailyActivity ? cloneDailyWordActivity(previousDailyActivity) : { look: { known: 0, unknown: 0 }, listen: { known: 0, unknown: 0 } };
+  activity[mode][result] += 1;
   return touch({
     ...state,
     modes: { ...state.modes, [mode]: { ...modeState, progress: { ...modeState.progress, [id]: progress }, session: nextSession } },
-    history: [...state.history, journal(state, mode, result, id)].slice(-20),
+    dailyActivity: { ...state.dailyActivity, [activityDate]: { ...day, [id]: activity } },
+    history: [...state.history, {
+      ...journal(state, mode, result, id), activityDate,
+      previousDailyActivity: previousDailyActivity ? cloneDailyWordActivity(previousDailyActivity) : null,
+    }].slice(-20),
   }, now);
 }
 
@@ -161,7 +172,7 @@ export function skipWord(state: AppState, mode: Mode, expectedToken: string | nu
   const skipped = [...state.skipped, active.id];
   const modeState = state.modes[mode];
   const session = advancePastSkipped(active.session, new Set(skipped));
-  return touch({ ...state, skipped, modes: { ...state.modes, [mode]: { ...modeState, session } }, history: [...state.history, entry].slice(-20) }, now);
+  return touch({ ...state, settings: { ...state.settings, skipHintSeen: true }, skipped, modes: { ...state.modes, [mode]: { ...modeState, session } }, history: [...state.history, entry].slice(-20) }, now);
 }
 
 /** Audio failure or a temporary pause: skip this encounter, preserve all learning counts. */
@@ -186,8 +197,17 @@ export function undo(state: AppState, now: number): AppState {
   if (entry.previousProgress) progress[entry.wordId] = { ...entry.previousProgress };
   else delete progress[entry.wordId];
   const other = otherMode(entry.mode);
+  const dailyActivity = { ...state.dailyActivity };
+  if (entry.activityDate !== undefined && entry.previousDailyActivity !== undefined) {
+    const day = { ...dailyActivity[entry.activityDate] };
+    if (entry.previousDailyActivity) day[entry.wordId] = cloneDailyWordActivity(entry.previousDailyActivity);
+    else delete day[entry.wordId];
+    if (Object.keys(day).length) dailyActivity[entry.activityDate] = day;
+    else delete dailyActivity[entry.activityDate];
+  }
   return touch({
     ...state,
+    dailyActivity,
     modes: {
       ...state.modes,
       [entry.mode]: { ...modeState, progress, session: cloneSession(entry.previousSession), groupNumber: entry.previousGroupNumber },
