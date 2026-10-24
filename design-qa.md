@@ -121,3 +121,15 @@ final result: passed
 本地 lint、typecheck、198 项测试、16 项 Python 测试与构建通过；既有学习 11 项、触感/日历等体验 10 项、词组/搜索/阅读纠正 7 项回归通过。发布后公开字节与浏览器核对另记于交付输出，不以此处构建结论替代。
 
 user acceptance: approved previews; implementation acceptance not claimed
+
+## 2026-10-23 安卓直接安装包
+
+按用户补充要求提供 Word 独立签名的 TWA APK，版本 1.0.0 / 1。网页仅在原安装帮助中加入同风格下载按钮及 Chrome/进度说明，不更换学习页面或计划布局。已打开实际 390×844 与 1440×1000 安装帮助截图，按钮、正文、关闭和滚动区域可访问，无横向溢出；截图在本任务 `outputs/word-android/browser-local/`。
+
+本地 `lint`、198 项测试、typecheck 和站点构建通过；原学习流程 11 项回归通过，新增 APK 浏览器检查 5 项通过。Vite preview 不执行 Cloudflare `_headers`，本地 APK MIME/附件头明确留待生产核验，不能把本地通过当作上线头部已正确。手势回归首次命中喇叭按钮而被产品正常忽略，已改测试 helper 按实际 DOM 选取非交互起点；真实 CDP 触摸及全部历史/进度不变断言保留，同一应用 shell 重跑 11/11 通过。
+
+Android URL 策略 4 项单测、release lint（0 errors、0 warnings，固定工具版本提示 1 条）和签名构建通过。实际 v2/v3 签名已核对。独立 API 35 AOSP 模拟器实际安装、同包覆盖安装并保留 UID；首轮发现缺少 Browser Helper 管理组件导致启动退出，补齐后最终 SHA-256 `8f737d60ebd126da7e6beff9108d8ced005c7043292c7604a930cdb0652607eb` 的 APK（246947 bytes）重新安装和启动，无新增 Word fatal crash。
+
+模拟器没有 Chrome，实际显示 Browser Helper 的 Chrome 不可用对话框，未展示学习网页；它只证明安装、覆盖安装及缺浏览器路径，不证明 TWA 全屏、真机发音、麦克风或系统分享。APK 使用同一 Chrome 的本站存储，其它浏览器/设备仍需备份导入。已停本任务模拟器，未操作其它 AVD、项目签名或用户学习数据。上线字节、响应头和站点证书关联另行核对。
+
+user acceptance: not claimed; physical Android acceptance remains unverified

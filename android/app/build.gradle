@@ -1,0 +1,62 @@
+plugins { id 'com.android.application' }
+
+def signingValues = ['WORD_ANDROID_STORE_FILE', 'WORD_ANDROID_STORE_PASSWORD', 'WORD_ANDROID_KEY_ALIAS', 'WORD_ANDROID_KEY_PASSWORD'].collectEntries { [(it): System.getenv(it)] }
+def signingReady = signingValues.values().every { it != null && !it.isEmpty() }
+
+android {
+    namespace = 'com.yanxai.word'
+    compileSdk = 36
+    buildToolsVersion = '36.0.0'
+    defaultConfig {
+        applicationId = 'com.yanxai.word'
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = '1.0.0'
+    }
+    signingConfigs {
+        release {
+            if (signingReady) {
+                storeFile = file(signingValues.WORD_ANDROID_STORE_FILE)
+                storePassword = signingValues.WORD_ANDROID_STORE_PASSWORD
+                keyAlias = signingValues.WORD_ANDROID_KEY_ALIAS
+                keyPassword = signingValues.WORD_ANDROID_KEY_PASSWORD
+                storeType = 'PKCS12'
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = false
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.release
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    lint {
+        abortOnError = true
+        warningsAsErrors = true
+        checkReleaseBuilds = true
+        // These compatible versions are deliberately pinned; upgrade notices are not defects.
+        informational += ['AndroidGradlePluginVersion']
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (!signingReady && graph.allTasks.any { it.name in ['assembleRelease', 'packageRelease', 'bundleRelease', 'validateSigningRelease'] }) {
+        throw new GradleException('Release requires the dedicated Word signing environment. Run tools/android/build.ps1; debug signing is never substituted.')
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+    testImplementation 'junit:junit:4.13.2'
+}

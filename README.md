@@ -1,6 +1,8 @@
 # Word · 背单词
 
-Claude 原型风格的免费网页/PWA：看词、听音、本书每日计划与打卡分享、昨日错词复习、经核对的常用搭配、离线语音复述、真实 ECDICT 词库、本机进度及备份恢复。当前方案见 [docs/00-web-plan.md](docs/00-web-plan.md)；旧原生方案仅作历史参考。
+Claude 原型风格的免费网页/PWA：看词、听音、本书每日计划与打卡分享、昨日错词复习、经核对的常用搭配、离线语音复述、真实 ECDICT 词库、本机进度及备份恢复。另提供按用户要求制作的安卓 TWA 安装包。当前方案见 [docs/00-web-plan.md](docs/00-web-plan.md)；旧原生方案仅作历史参考。
+
+安卓安装包：[Word 1.0.0 APK](https://word.yanxai.com/downloads/word-android-1.0.0.apk)。需要 Android 7.0+ 与稳定版 Chrome；下载后按系统提示安装，从桌面「背单词」打开。它沿用同一 Chrome 中的本站数据；其它浏览器或设备需先导出备份。不是独立重写的原生学习引擎，首次仍需联网下载词库。源码、构建、签名保留与验收边界见 [android/README.md](android/README.md)。
 
 ## 本地运行
 

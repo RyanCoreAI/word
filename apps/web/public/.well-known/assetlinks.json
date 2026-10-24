@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "sha256_cert_fingerprints": [
+        "A8:A7:DA:D2:8D:15:2A:16:03:DB:DE:76:67:B3:44:E5:38:7B:64:76:3B:84:09:5B:D8:B5:A1:0F:D5:31:46:BC"
+      ],
+      "package_name": "com.yanxai.word"
+    }
+  }
+]

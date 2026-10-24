@@ -10,8 +10,9 @@ export function installPlatform(userAgent: string): 'embedded' | 'android' | 'io
 export function InstallHelp() {
   const platform = installPlatform(navigator.userAgent);
   const [copied, setCopied] = useState(false);
-  return <div className="installation-guide"><p className="help-text">安装后从手机桌面图标打开，使用独立应用窗口。无需应用商店账号或付费，也不需要下载 APK。</p>
+  return <div className="installation-guide"><p className="help-text">安装后从手机桌面图标打开，使用独立应用窗口。安卓可直接下载安装包，也可通过浏览器安装。</p>
     {platform === 'embedded' && <p className="install-browser-note">当前可能是应用内置浏览器。请从右上角菜单选择在浏览器打开，或复制下面的网址到 Chrome。</p>}
+    {platform !== 'ios' && <><a className="btn primary android-apk-download" href={new URL('downloads/word-android-1.0.0.apk', document.baseURI).href} download="word-android-1.0.0.apk">下载安卓安装包 · 1.0.0</a><p className="help-text">Android 7.0 及以上，需已安装稳定版 Chrome。下载后打开 APK，按系统提示允许本次安装。使用同一 Chrome 的本机网站进度；其它浏览器的进度需先备份导入。</p></>}
     <ol className="install-help">
       {platform === 'ios' ? <><li>用 Safari 打开本站。</li><li>点分享按钮，选择「添加到主屏幕」，确认添加。</li><li>从桌面的「背单词」图标打开。</li></> : <><li>在安卓手机上，用 Chrome 打开本站。</li><li>点首页「安装应用」。如果没有弹出安装窗口，点浏览器右上角 ⋮，选择「安装并创建快捷方式 → 安装」；部分版本显示「添加到主屏幕」或「安装应用」。</li><li>按系统提示确认，再从桌面的「背单词」图标打开。若只创建了快捷方式，打开时仍有地址栏，可在 Chrome 菜单再次检查是否提供安装。</li></>}
     </ol>

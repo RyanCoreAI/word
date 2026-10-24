@@ -4,3 +4,17 @@
 
 /index.html
   Cache-Control: public, max-age=0, must-revalidate, no-transform
+
+/.well-known/assetlinks.json
+  Content-Type: application/json
+  Cache-Control: public, max-age=300, no-transform
+  X-Content-Type-Options: nosniff
+
+/downloads/*.apk
+  Content-Type: application/vnd.android.package-archive
+  Content-Disposition: attachment
+  X-Content-Type-Options: nosniff
+
+/downloads/word-android.json
+  Content-Type: application/json
+  Cache-Control: public, max-age=300, no-transform

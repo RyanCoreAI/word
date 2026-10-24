@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyAndroidAssets } from './android/verify-assets.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const url = new URL(process.env.WORD_QA_URL ?? 'https://word.yanxai.com/');
@@ -12,6 +13,7 @@ await mkdir(output, { recursive: true });
 const local = file => readFile(path.join(root, 'dist', file));
 const asr = JSON.parse(await local('asr/manifest.json'));
 const dictionary = JSON.parse(await local('data/manifest.json'));
+const { release: android } = await verifyAndroidAssets(path.join(root, 'dist'));
 const html = (await local('index.html')).toString('utf8');
 const assets = [...html.matchAll(/(?:src|href)="\.\/([^"?#]+\.(?:js|css))"/g)].map(match => match[1]);
 async function listFiles(folder, prefix = '') {
@@ -37,7 +39,7 @@ for (const license of ['licenses/Canvas-Confetti-ISC.txt', 'licenses/QRCode-MIT.
   assert.ok((await local(license)).length > 0, `Empty release license: ${license}`);
 }
 const filenames = [...new Set([
-  'index.html', 'sw.js', 'manifest.webmanifest', ...assets, ...codeAssets, ...sceneAssets, ...licenseAssets,
+  'index.html', 'sw.js', 'manifest.webmanifest', '.well-known/assetlinks.json', 'downloads/word-android.json', `downloads/${android.file}`, ...assets, ...codeAssets, ...sceneAssets, ...licenseAssets,
   'data/manifest.json', `data/${dictionary.study.file}`, `data/${dictionary.shards[0].file}`, `data/${dictionary.shards.at(-1).file}`,
   'asr/manifest.json', ...asr.assets.flatMap(asset => asset.parts.map(part => 'asr/' + part.file)),
 ])];

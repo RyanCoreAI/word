@@ -1,0 +1,12 @@
+{
+  "applicationId": "com.yanxai.word",
+  "version": "1.0.0",
+  "versionCode": 1,
+  "minSdk": 24,
+  "browser": "com.android.chrome",
+  "url": "https://word.yanxai.com/downloads/word-android-1.0.0.apk",
+  "file": "word-android-1.0.0.apk",
+  "bytes": 246947,
+  "sha256": "8f737d60ebd126da7e6beff9108d8ced005c7043292c7604a930cdb0652607eb",
+  "certificateSha256": "A8:A7:DA:D2:8D:15:2A:16:03:DB:DE:76:67:B3:44:E5:38:7B:64:76:3B:84:09:5B:D8:B5:A1:0F:D5:31:46:BC"
+}

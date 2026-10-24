@@ -1,0 +1,10 @@
+# Word Android build rules
+
+- Root `AGENTS.md` remains authoritative. Keep this a Word-only TWA, using stable Chrome and the exact Word origin; do not add WebView, arbitrary URLs, another repository's key, or a second learning database.
+- Launcher icons must use `mipmap` XML with an Android 26+ adaptive variant, an Android 33+ monochrome variant and a legacy inset fallback. Do not point the manifest directly at the nearly opaque full-square PWA PNG: release lint rejects its silhouette, even if the roundIcon attribute is removed. Reuse the approved brand image inside the native icon resources.
+- Run URL policy tests, `lintRelease` and signed `assembleRelease`; do not disable icon checks or baseline new errors. A compatible, deliberately pinned build-tool version notice may remain informational.
+- Use the explicit ASCII staging build directory for Windows sources under a Chinese path. Escape the drive colon in generated `local.properties`; do not disable path checks or move/reset the source checkout.
+- Generated Windows wrapper scripts keep CRLF in the working tree and LF in the Git index through the scoped root `.gitattributes`. After adding these attributes to an already staged new wrapper, renormalize only that wrapper and run `git diff --cached --check`; checking unstaged tracked files misses new-file whitespace issues.
+- Keep `android/.signing/`, build directories and local SDK paths out of Git. Never regenerate a missing published signing key silently. Public APK/certificate fingerprints may be committed; private material may not.
+- Validate actual APK signatures and website asset links. An AOSP emulator without Chrome only verifies installation and the missing-browser path; it cannot establish that the TWA, speech, microphone or sharing passed.
+- Keep every component required by the pinned Browser Helper declared, including `ManageDataLauncherActivity` and `FocusActivity`. Confirm a real launch and fresh crash logs after signing; an `am start` success alone does not prove the activity survived.

@@ -2,6 +2,7 @@ import { readdir, readFile, writeFile, stat, mkdir, cp } from 'node:fs/promises'
 import { createHash } from 'node:crypto';
 import { crc32, inflateSync } from 'node:zlib';
 import path from 'node:path';
+import { verifyAndroidAssets } from './android/verify-assets.mjs';
 
 const sceneNames = Array.from({ length: 20 }, (_, index) => `${String(index + 1).padStart(2, '0')}.png`);
 function verifyScenePng(bytes, filename) {
@@ -66,11 +67,12 @@ if (process.argv.includes('--check-scenes-only')) {
 
 const dist = path.resolve('dist');
 // Historical audio and lexical packs stay in the workspace only.
-for (const entry of ['data', 'icons', 'images', 'licenses', 'manifest.webmanifest', '_headers', 'asr']) {
+for (const entry of ['data', 'icons', 'images', 'licenses', 'manifest.webmanifest', '_headers', 'asr', 'downloads', '.well-known']) {
   await cp(path.resolve('apps/web/public', entry), path.join(dist, entry), { recursive: true });
 }
 if ((await readdir(dist)).some(entry => ['phrases', 'audio'].includes(entry))) throw new Error('Retired lexical/audio packs must not be deployed.');
 const checkInScenes = await verifyCheckInScenes(path.join(dist, 'images/check-in'));
+const android = await verifyAndroidAssets(dist);
 await mkdir(path.join(dist, 'licenses'), { recursive: true });
 for (const [pkg, filename, sourceName = 'LICENSE'] of [['@fontsource/inter', 'Inter-OFL.txt'], ['@fontsource/noto-sans-sc', 'Noto-Sans-SC-OFL.txt'], ['@fontsource/source-serif-4', 'Source-Serif-4-OFL.txt'], ['lucide-react', 'Lucide-ISC.txt'], ['canvas-confetti', 'Canvas-Confetti-ISC.txt'], ['qrcode', 'QRCode-MIT.txt', 'license']]) {
   const packageRoot = path.resolve('node_modules', pkg);
@@ -82,7 +84,7 @@ const files = [];
 async function visit(folder, prefix = '') {
   for (const entry of await readdir(folder, { withFileTypes: true })) {
     const relative = prefix + entry.name;
-    if (entry.isDirectory()) { if (!['data', 'audio', 'asr'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
+    if (entry.isDirectory()) { if (!['data', 'audio', 'asr', 'downloads', '.well-known'].includes(entry.name)) await visit(path.join(folder, entry.name), relative + '/'); }
     else if (!['sw.js', 'CNAME', '.nojekyll', '_headers'].includes(entry.name)) files.push(relative);
   }
 }
@@ -122,6 +124,8 @@ const hash = createHash('sha256');
 for (const file of files.sort()) hash.update(await readFile(path.join(dist, file)));
 hash.update(manifest.version);
 hash.update(asrManifest.version);
+hash.update(android.metadataBytes);
+hash.update(android.associationBytes);
 hash.update(await readFile(path.join(dist, '_headers')));
 // Worker logic changes must get a fresh cache namespace even if UI assets do not.
 hash.update(await readFile(new URL(import.meta.url)));
@@ -168,7 +172,7 @@ self.addEventListener('fetch',event=>{
  const url=new URL(event.request.url), scope=new URL(self.registration.scope);
  if(url.origin!==scope.origin||!url.pathname.startsWith(scope.pathname))return;
  const relative=url.pathname.slice(scope.pathname.length);
- if(relative.startsWith('data/')||relative.startsWith('audio/')||relative.startsWith('phrases/')||relative.startsWith('asr/'))return;
+ if(relative.startsWith('data/')||relative.startsWith('audio/')||relative.startsWith('phrases/')||relative.startsWith('asr/')||relative.startsWith('downloads/')||relative.startsWith('.well-known/'))return;
  // These responses are public, same-origin build assets only. A static host may
  // vary on Origin, while module/CSS requests and precache requests use different
  // Origin headers. Ignore that header variation within the explicit shell list.
@@ -185,6 +189,7 @@ self.addEventListener('fetch',event=>{
 await writeFile(path.join(dist, 'sw.js'), sw);
 await writeFile(path.join(dist, '.nojekyll'), '');
 console.log(`Verified ${manifest.total} dictionary entries; generated offline shell ${version} (${files.length} assets).`);
+console.log(`Verified signed APK asset ${android.release.version} (${android.release.bytes} bytes); excluded from offline installation/cache.`);
 console.log('Pronunciation uses device-local voices only; no hosted audio is bundled.');
 console.log('Reviewed collocations are bundled for offline use; historical lexical packs are excluded.');
 console.log(`Verified ${checkInScenes.length} distinct check-in PNGs (minimum 1080x800); requested scenes are cached on demand, never precached.`);

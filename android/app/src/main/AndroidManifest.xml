@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <application android:allowBackup="false" android:usesCleartextTraffic="false"
+        android:manageSpaceActivity="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
+        android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" tools:targetApi="s"
+        android:icon="@mipmap/word_launcher" android:roundIcon="@mipmap/word_launcher"
+        android:label="@string/app_name" android:supportsRtl="true"
+        android:theme="@style/WordLauncherTheme">
+        <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
+        <activity android:name=".WordLauncherActivity" android:exported="true">
+            <meta-data android:name="android.support.customtabs.trusted.DEFAULT_URL" android:value="https://word.yanxai.com/" />
+            <meta-data android:name="android.support.customtabs.trusted.LAUNCHING_BROWSER" android:value="com.android.chrome" />
+            <meta-data android:name="android.support.customtabs.trusted.LAUNCHING_BROWSER_NAME" android:value="Chrome" />
+            <meta-data android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR" android:resource="@color/screen" />
+            <meta-data android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR" android:resource="@color/screen" />
+            <meta-data android:name="android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE" android:resource="@drawable/word_icon" />
+            <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR" android:resource="@color/screen" />
+            <meta-data android:name="android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION" android:value="150" />
+            <meta-data android:name="android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY" android:value="com.yanxai.word.fileprovider" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="word.yanxai.com" android:path="/" />
+            </intent-filter>
+        </activity>
+        <activity android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity" android:exported="false">
+            <meta-data android:name="android.support.customtabs.trusted.MANAGE_SPACE_URL" android:value="https://word.yanxai.com/" />
+        </activity>
+        <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" android:exported="false" />
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="com.yanxai.word.fileprovider" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/filepaths" />
+        </provider>
+    </application>
+</manifest>

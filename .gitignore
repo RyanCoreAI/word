@@ -18,3 +18,7 @@ apps/web/public/asr/*
 outputs/
 __pycache__/
 .DS_Store
+android/.gradle/
+android/.signing/
+android/local.properties
+android/**/build/

@@ -179,14 +179,27 @@ async function screenshot(page, name) {
 }
 
 async function touchSwipe(page, direction) {
-  const stage = await page.locator('.swipe-stage').boundingBox(); assert.ok(stage);
-  const view = page.viewportSize();
-  const fromX = stage.x + stage.width * (direction === 'previous' ? .23 : .77);
-  const toX = stage.x + stage.width * (direction === 'previous' ? .77 : .23);
-  const y = Math.min(view.height - 190, Math.max(120, stage.y + Math.min(stage.height * .32, 160)));
+  const start = await page.locator('.swipe-stage').evaluate((element, swipeDirection) => {
+    const stage = element.getBoundingClientRect();
+    const word = element.querySelector('h2.word')?.getBoundingClientRect();
+    const fromX = stage.x + stage.width * (swipeDirection === 'previous' ? .23 : .77);
+    const toX = stage.x + stage.width * (swipeDirection === 'previous' ? .77 : .23);
+    // Match the product's excluded controls, and probe the real hit target rather than a fixed row.
+    const excluded = 'button,a,input,select,textarea,summary';
+    const candidateRows = [word ? word.y + word.height / 2 : null, stage.y + Math.min(stage.height * .32, 160), stage.y + stage.height * .5];
+    for (const y of candidateRows) {
+      if (y === null || y <= stage.top || y >= stage.bottom || y < 20 || y > innerHeight - 20 || fromX < 20 || fromX > innerWidth - 20) continue;
+      const target = document.elementFromPoint(fromX, y);
+      if (target?.closest('.swipe-stage') !== element || target.closest(excluded)) continue;
+      return { fromX, toX, y, startTarget: { tag: target.tagName, className: target.getAttribute('class'), excluded: false, onStage: true } };
+    }
+    return null;
+  }, direction);
+  assert.ok(start, 'Native swipe must start inside the study stage on a non-interactive element');
+  const { fromX, toX, y, startTarget } = start;
   await page.evaluate(() => { globalThis.__newLearningPointers = []; });
   const cdp = await page.context().newCDPSession(page);
-  const observation = { direction, fromX, toX, y, startUrl: page.url(), styles: await page.locator('.swipe-stage').evaluate(element => ({
+  const observation = { direction, fromX, toX, y, startTarget, startUrl: page.url(), styles: await page.locator('.swipe-stage').evaluate(element => ({
     stageTouchAction: getComputedStyle(element).touchAction,
     htmlOverscroll: getComputedStyle(document.documentElement).overscrollBehavior,
     bodyOverscroll: getComputedStyle(document.body).overscrollBehavior,
@@ -387,11 +400,14 @@ try {
     await mobile.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '设置', exact: true }).click();
     await mobile.getByRole('button', { name: '查看安装方法', exact: true }).click();
     const guide = mobile.locator('.installation-guide'); await guide.waitFor();
-    assert.match(await guide.innerText(), /Chrome/); assert.match(await guide.innerText(), /添加到主屏幕/); assert.match(await guide.innerText(), /不需要下载 APK/);
+    assert.match(await guide.innerText(), /Chrome/); assert.match(await guide.innerText(), /添加到主屏幕/);
+    const apkLink = guide.getByRole('link', { name: '下载安卓安装包 · 1.0.0', exact: true });
+    assert.equal(new URL(await apkLink.getAttribute('href')).pathname, '/downloads/word-android-1.0.0.apk');
+    assert.match(await guide.innerText(), /稳定版 Chrome/);
     assert.equal(await guide.getByRole('textbox', { name: '应用安装网址', exact: true }).inputValue(), 'https://word.yanxai.com/');
     assert.equal(new URL(await guide.getByRole('link', { name: '查看 Chrome 官方安装说明', exact: true }).getAttribute('href')).hostname, 'support.google.com');
     await screenshot(mobile, '07-mobile-android-install-guide');
-    return { userAgentIncludesAndroid: (await mobile.evaluate(() => navigator.userAgent)).includes('Android'), officialGuide: true, truthfulNoApkOrPaidAccount: true, operatingSystemInstallationNotClaimed: true };
+    return { userAgentIncludesAndroid: (await mobile.evaluate(() => navigator.userAgent)).includes('Android'), officialGuide: true, apkAndPwaAvailable: true, chromeRequiredForApk: true, operatingSystemInstallationNotClaimed: true };
   });
 
   await check('separate desktop Chrome renders the same real inline content without page overflow', async () => {
