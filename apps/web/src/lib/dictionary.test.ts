@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Word } from '../../../../packages/core/src';
-import { downloadAll, getDownloadProgress, loadStudyDictionary, readCachedStudy, sha256, type DictionaryManifest } from './dictionary';
+import { dictionaryManifestSchema, downloadAll, getDownloadProgress, loadStudyDictionary, readCachedStudy, sha256, type DictionaryManifest } from './dictionary';
 import { openWordDatabase, type WordDatabase } from './storage';
 
 const words: Word[] = ['abandon', 'ability'].map((word, rank) => ({ id: word, word, translation: 'n. 测试词义', phonetic: '', tags: ['cet4'], rank, basic: false }));
@@ -32,6 +32,28 @@ async function fixture() {
 }
 
 describe('verified dictionary loading', () => {
+  it.each(['licenses/ECDICT-LICENSE.txt', '/licenses/ECDICT-LICENSE.txt'])('keeps a normal same-origin license path unchanged: %s', async file => {
+    const { manifest } = await fixture();
+    const checked = dictionaryManifestSchema.parse({ ...manifest, license: { ...manifest.license, file } });
+    expect(checked.license.file).toBe(file);
+    expect(new URL(checked.license.file.replace(/^\/+/, ''), 'https://word.yanxai.com/').href).toBe('https://word.yanxai.com/licenses/ECDICT-LICENSE.txt');
+  });
+
+  it.each([
+    'javascript:alert(document.domain)', 'data:text/html,<script>alert(1)</script>',
+    'https://foreign.example/license.txt', '//foreign.example/license.txt',
+    '../license.txt', '/licenses/../../license.txt', 'licenses/%2e%2e/license.txt',
+    'licenses/%252e%252e/license.txt', '/\\foreign.example/license.txt', 'licenses//license.txt', '',
+  ])('rejects an unsafe license path before downloading or replacing the usable cache: %s', async file => {
+    const { db, options, files, manifest, fetcher } = await fixture();
+    await loadStudyDictionary(db, options);
+    files.set('https://example.test/data/manifest.json', JSON.stringify({ ...manifest, license: { ...manifest.license, file } }));
+    fetcher.mockClear();
+    await expect(loadStudyDictionary(db, options)).rejects.toThrow(/license path/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await readCachedStudy(db)).toEqual({ manifest, words });
+  });
+
   it('saves a verified study package and reads it without fetching', async () => {
     const { db, options, fetcher, manifest } = await fixture();
     expect(await readCachedStudy(db)).toBeNull();

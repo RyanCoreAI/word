@@ -67,13 +67,20 @@ async function selectScene(target) {
 }
 async function pngExport(saveName, { testNativeDownload = false } = {}) {
   await waitReady();
-  const generated = await share().locator('.check-in-share-preview > img').evaluate(async image => {
-    const response = await fetch(image.src); const blob = await response.blob();
-    const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
-    return { data, mime: blob.type, blobUrl: image.src };
-  });
-  assert.equal(generated.mime, 'image/png');
-  const buffer = Buffer.from(generated.data.split(',')[1], 'base64');
+  const blobUrl = await share().locator('.check-in-share-preview > img').evaluate(image => image.src);
+  // Inspect the actual decoded resource without adding a page fetch(blob:) capability to CSP.
+  const cdp = await context.newCDPSession(page);
+  let payload;
+  try {
+    await cdp.send('Page.enable');
+    const { frameTree } = await cdp.send('Page.getResourceTree');
+    const resource = frameTree.resources.find(resource => resource.url === blobUrl);
+    assert.equal(resource?.mimeType, 'image/png');
+    payload = await cdp.send('Page.getResourceContent', { frameId: frameTree.frame.id, url: blobUrl });
+  } finally { await cdp.detach(); }
+  assert.equal(payload.base64Encoded, true);
+  const generated = { blobUrl };
+  const buffer = Buffer.from(payload.content, 'base64');
   if (testNativeDownload) {
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: '保存图片', exact: true }).click();
@@ -114,7 +121,7 @@ async function buildPlanFixture() {
     const now = new Date(); const offset = now.getTimezoneOffset();
     return { today: new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10), offset };
   });
-  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
+  const vite = await createServer({ configFile: false, root, server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' });
   try {
     const core = await vite.ssrLoadModule(path.join(root, 'packages/core/src/index.ts'));
     const yesterday = core.previousLocalDateKey(today);

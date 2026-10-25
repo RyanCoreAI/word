@@ -4,6 +4,8 @@ Claude 原型风格的免费网页/PWA：看词、听音、本书每日计划与
 
 安卓安装包：[Word 1.0.0 APK](https://word.yanxai.com/downloads/word-android-1.0.0.apk)。需要 Android 7.0+ 与稳定版 Chrome；下载后按系统提示安装，从桌面「背单词」打开。它沿用同一 Chrome 中的本站数据；其它浏览器或设备需先导出备份。不是独立重写的原生学习引擎，首次仍需联网下载词库。源码、构建、签名保留与验收边界见 [android/README.md](android/README.md)。
 
+安全措施、Cloudflare 范围与验证边界见 [安全防护说明](docs/11-security.md)：安全响应头、本站资源策略、严格备份/路径校验及发布目录检查。后台规则的实际启用状态与公网拒绝样例分开记录，不宣称绝对安全。
+
 ## 本地运行
 
 需要 Node.js 22.12+（推荐24）、Python 3.12+，无需额外 Python 库。

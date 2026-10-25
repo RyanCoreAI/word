@@ -6,6 +6,8 @@ const MAX_MANIFEST_BYTES = 512 * 1024;
 const MAX_DATA_BYTES = 16 * 1024 * 1024;
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const relativePath = z.string().min(1).max(300).regex(/^[A-Za-z0-9_./-]+$/).refine(value => !value.startsWith('/') && !value.split('/').some(part => part === '..' || part === ''), 'Invalid dictionary path');
+// Existing manifests use /licenses/...; retain that one leading slash, never a URL authority.
+const licensePath = z.string().max(300).refine(value => relativePath.safeParse(value.startsWith('/') ? value.slice(1) : value).success, 'Invalid dictionary license path');
 const assetSchema = z.object({ file: relativePath, count: z.number().int().positive().max(1_000_000), bytes: z.number().int().positive().max(MAX_DATA_BYTES), sha256: digestSchema }).strict();
 export const dictionaryManifestSchema = z.object({
   version: z.string().min(1).max(200),
@@ -14,7 +16,7 @@ export const dictionaryManifestSchema = z.object({
   studyCount: z.number().int().positive().max(100_000),
   study: assetSchema,
   shards: z.array(assetSchema).min(1).max(2000),
-  license: z.object({ name: z.literal('MIT'), file: z.string().min(1).max(300), sourceUrl: z.string().url(), sha256: digestSchema }).strict(),
+  license: z.object({ name: z.literal('MIT'), file: licensePath, sourceUrl: z.string().url(), sha256: digestSchema }).strict(),
   stats: z.unknown(), policy: z.unknown(),
 }).strict().superRefine((manifest, ctx) => {
   if (manifest.study.count !== manifest.studyCount || manifest.studyCount > manifest.total) ctx.addIssue({ code: 'custom', message: 'Dictionary study count mismatch' });

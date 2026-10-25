@@ -133,3 +133,11 @@ Android URL 策略 4 项单测、release lint（0 errors、0 warnings，固定�
 模拟器没有 Chrome，实际显示 Browser Helper 的 Chrome 不可用对话框，未展示学习网页；它只证明安装、覆盖安装及缺浏览器路径，不证明 TWA 全屏、真机发音、麦克风或系统分享。APK 使用同一 Chrome 的本站存储，其它浏览器/设备仍需备份导入。已停本任务模拟器，未操作其它 AVD、项目签名或用户学习数据。上线字节、响应头和站点证书关联另行核对。
 
 user acceptance: not claimed; physical Android acceptance remains unverified
+
+## 2026-10-25 安全策略下的页面回归
+
+本轮不改变界面。使用实际处理 `_headers` 的 Wrangler 本地静态服务检查，已打开 390×844 与 1440×1000 首页截图；手机/桌面仍使用原字体、蓝色圆环、计划卡和底部导航，320×568 也无横向溢出。截图在 `outputs/word-security/browser-local-final/`，新浏览器中的零进度为隔离验收状态，不是用户记录。
+
+安全浏览器 8 项检查通过：正常页面无意外 CSP 违规，真实插入的内联脚本/事件不能执行，外源 iframe 被浏览器明确拒绝，SW 离线首页保留相同安全头与原状态，APK/DAL 仍从网络返回原字节。严格 CSP 下复述 9 项通过，包含真实文件麦克风录音、WASM 识别和离线再识别；不代表手机硬件验收。
+
+分享功能 10 项通过，20 张导出 PNG 的二维码均可独立解码；原生磁盘保存仍报告 canceled，整体 limited，未改写为成功。测试现从 Chrome 已加载资源读取真实 PNG，未给生产 CSP 增加 Blob fetch 能力。平台不支持 `web-share` 权限指令时如实记录，不能拿未知指令的 false 判断应用禁用了分享。公网新策略与最终字节由发布后报告单独确认。

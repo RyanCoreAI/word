@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { crc32, inflateSync } from 'node:zlib';
 import path from 'node:path';
 import { verifyAndroidAssets } from './android/verify-assets.mjs';
+import { assertPublicReleaseTree } from './security/release-guard.mjs';
 
 const sceneNames = Array.from({ length: 20 }, (_, index) => `${String(index + 1).padStart(2, '0')}.png`);
 function verifyScenePng(bytes, filename) {
@@ -68,8 +69,15 @@ if (process.argv.includes('--check-scenes-only')) {
 const dist = path.resolve('dist');
 // Historical audio and lexical packs stay in the workspace only.
 for (const entry of ['data', 'icons', 'images', 'licenses', 'manifest.webmanifest', '_headers', 'asr', 'downloads', '.well-known']) {
-  await cp(path.resolve('apps/web/public', entry), path.join(dist, entry), { recursive: true });
+  const sourceRoot = path.resolve('apps/web/public', entry);
+  await cp(sourceRoot, path.join(dist, entry), { recursive: true, filter: source => {
+    if (path.basename(source) === '.gitignore') return false;
+    // Interrupted dictionary builds leave private staging siblings; never publish or delete them.
+    if (entry === 'data' && path.dirname(source) === sourceRoot && /^\.building-[a-f0-9]{32}$/.test(path.basename(source))) return false;
+    return true;
+  } });
 }
+await assertPublicReleaseTree(dist);
 if ((await readdir(dist)).some(entry => ['phrases', 'audio'].includes(entry))) throw new Error('Retired lexical/audio packs must not be deployed.');
 const checkInScenes = await verifyCheckInScenes(path.join(dist, 'images/check-in'));
 const android = await verifyAndroidAssets(dist);
@@ -188,6 +196,8 @@ self.addEventListener('fetch',event=>{
 `;
 await writeFile(path.join(dist, 'sw.js'), sw);
 await writeFile(path.join(dist, '.nojekyll'), '');
+const publicRelease = await assertPublicReleaseTree(dist);
+console.log(`Verified public release boundary (${publicRelease.files} regular files; no private/development paths).`);
 console.log(`Verified ${manifest.total} dictionary entries; generated offline shell ${version} (${files.length} assets).`);
 console.log(`Verified signed APK asset ${android.release.version} (${android.release.bytes} bytes); excluded from offline installation/cache.`);
 console.log('Pronunciation uses device-local voices only; no hosted audio is bundled.');

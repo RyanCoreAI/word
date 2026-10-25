@@ -1,3 +1,12 @@
+# Word-only browser defenses. Microphone, local WASM recognition and sharing remain available.
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; font-src 'self' data:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(self), geolocation=(), display-capture=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), accelerometer=(), gyroscope=(), magnetometer=(), browsing-topics=(), autoplay=(self), clipboard-write=(self), web-share=(self)
+
 # Keep the document unchanged by the hosting proxy, including analytics injection.
 /
   Cache-Control: public, max-age=0, must-revalidate, no-transform
@@ -8,12 +17,10 @@
 /.well-known/assetlinks.json
   Content-Type: application/json
   Cache-Control: public, max-age=300, no-transform
-  X-Content-Type-Options: nosniff
 
 /downloads/*.apk
   Content-Type: application/vnd.android.package-archive
   Content-Disposition: attachment
-  X-Content-Type-Options: nosniff
 
 /downloads/word-android.json
   Content-Type: application/json
