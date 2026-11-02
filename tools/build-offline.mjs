@@ -59,10 +59,50 @@ async function verifyCheckInScenes(folder) {
   return scenes;
 }
 
+async function verifyArticleDictionary(dataRoot, dictionary, contracts) {
+  const bytes = await readFile(path.join(dataRoot, 'article-manifest.json'));
+  const { articleDictionaryManifestSchema } = await contracts.ssrLoadModule('/apps/web/src/lib/article-dictionary.ts');
+  const manifest = articleDictionaryManifestSchema.parse(JSON.parse(bytes.toString('utf8')));
+  if (manifest.version !== dictionary.version) throw new Error('Reading dictionary version differs from the learning dictionary.');
+  for (const field of ['name', 'commit', 'url', 'sha256', 'bytes']) {
+    if (manifest.source[field] !== dictionary.source[field]) throw new Error(`Reading dictionary source mismatch: ${field}`);
+  }
+  for (const field of ['name', 'file', 'sourceUrl', 'sha256']) {
+    if (manifest.license[field] !== dictionary.license[field]) throw new Error(`Reading dictionary license mismatch: ${field}`);
+  }
+  for (const asset of [manifest.words, manifest.lemmas]) {
+    const filename = path.resolve(dataRoot, asset.file);
+    if (!filename.startsWith(path.resolve(dataRoot) + path.sep)) throw new Error('Reading dictionary path escapes data directory.');
+    const content = await readFile(filename);
+    if (content.length !== asset.bytes || createHash('sha256').update(content).digest('hex') !== asset.sha256) throw new Error(`Reading dictionary integrity failure: ${asset.file}`);
+    const parsed = JSON.parse(content.toString('utf8'));
+    const validShape = asset === manifest.words ? Array.isArray(parsed) : typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+    if (!validShape) throw new Error(`Reading dictionary record shape mismatch: ${asset.file}`);
+    const count = Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+    if (count !== asset.count) throw new Error(`Reading dictionary record count mismatch: ${asset.file}`);
+  }
+  return { manifest, bytes };
+}
+
+async function contractServer() {
+  const { createServer } = await import('vite');
+  return createServer({ configFile: false, root: process.cwd(), server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' });
+}
+
 // Read-only source validation does not touch dist while browser QA is running.
 if (process.argv.includes('--check-scenes-only')) {
   const scenes = await verifyCheckInScenes(path.resolve('apps/web/public/images/check-in'));
   console.log(JSON.stringify({ scenes: scenes.length, uniqueHashes: scenes.length, minWidth: Math.min(...scenes.map(scene => scene.width)), minHeight: Math.min(...scenes.map(scene => scene.height)), totalBytes: scenes.reduce((sum, scene) => sum + scene.bytes, 0) }));
+  process.exit(0);
+}
+if (process.argv.includes('--check-articles-only')) {
+  const dataRoot = path.resolve('apps/web/public/data');
+  const dictionary = JSON.parse(await readFile(path.join(dataRoot, 'manifest.json'), 'utf8'));
+  const contracts = await contractServer();
+  try {
+    const { manifest } = await verifyArticleDictionary(dataRoot, dictionary, contracts);
+    console.log(JSON.stringify({ readingWords: manifest.words.count, inflectedForms: manifest.lemmas.count, totalBytes: manifest.words.bytes + manifest.lemmas.bytes, allChecksumsPassed: true }));
+  } finally { await contracts.close(); }
   process.exit(0);
 }
 
@@ -108,10 +148,11 @@ for (const entry of [manifest.study, ...manifest.shards]) {
 }
 // Validate local ASR assets before publishing. Reviewed collocations are part
 // of the application bundle; the rejected lexical corpus is not deployed.
-const { createServer } = await import('vite');
-const contracts = await createServer({ configFile: false, root: process.cwd(), server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' });
+const contracts = await contractServer();
 let asrManifest;
+let articleDictionary;
 try {
+  articleDictionary = await verifyArticleDictionary(path.join(dist, 'data'), manifest, contracts);
   const asr = await contracts.ssrLoadModule('/apps/web/src/lib/retell-asr-assets.ts');
   const asrRoot = path.resolve(dist, 'asr');
   asrManifest = asr.asrManifestSchema.parse(JSON.parse(await readFile(path.join(asrRoot, 'manifest.json'), 'utf8')));
@@ -131,6 +172,8 @@ try {
 const hash = createHash('sha256');
 for (const file of files.sort()) hash.update(await readFile(path.join(dist, file)));
 hash.update(manifest.version);
+// Reading assets stay out of installation, but changed checksums must update the shell namespace.
+hash.update(articleDictionary.bytes);
 hash.update(asrManifest.version);
 hash.update(android.metadataBytes);
 hash.update(android.associationBytes);
@@ -204,4 +247,5 @@ console.log('Pronunciation uses device-local voices only; no hosted audio is bun
 console.log('Reviewed collocations are bundled for offline use; historical lexical packs are excluded.');
 console.log(`Verified ${checkInScenes.length} distinct check-in PNGs (minimum 1080x800); requested scenes are cached on demand, never precached.`);
 console.log(`Verified local ASR ${asrManifest.version} (${asrManifest.totalBytes} bytes); excluded from shell precache.`);
+console.log(`Verified reading dictionary (${articleDictionary.manifest.words.count} entries; ${articleDictionary.manifest.lemmas.count} inflected forms; ${articleDictionary.manifest.words.bytes + articleDictionary.manifest.lemmas.bytes} bytes); user-initiated download only, excluded from shell precache.`);
 console.log(`Service worker: ${(await stat(path.join(dist, 'sw.js'))).size} bytes. Dictionary is downloaded only after user action.`);

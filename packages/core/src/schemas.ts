@@ -1,3 +1,4 @@
+import './validation-policy';
 import { z } from 'zod';
 import { isLocalDateKey } from './activity';
 import { MAX_STUDY_TRAIL } from './navigation';

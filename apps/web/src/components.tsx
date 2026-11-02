@@ -27,9 +27,9 @@ export function WordList({ words, state, onWord, mode = 'look', variant = 'full'
   }) : <p className="empty">{empty}</p>}</div>;
 }
 
-export function Navigation({ page, go }: { page: string; go: (page: 'home' | 'retell' | 'words' | 'settings') => void }) {
+export function Navigation({ page, go }: { page: string; go: (page: 'home' | 'articles' | 'retell' | 'words' | 'settings') => void }) {
   return <nav className="tabbar" aria-label="主导航">{([
-    ['home', '学习', Home], ['retell', '复述', Mic], ['words', '生词本', NotebookPen], ['settings', '设置', Settings],
+    ['home', '学习', Home], ['articles', '阅读', BookOpen], ['retell', '复述', Mic], ['words', '生词本', NotebookPen], ['settings', '设置', Settings],
   ] as const).map(([id, title, Icon]) => <button key={id} className={`tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined} onClick={() => go(id)}><Icon className="ic" />{title}</button>)}</nav>;
 }
 

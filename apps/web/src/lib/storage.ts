@@ -201,6 +201,45 @@ export class WordDatabase {
       };
     });
   }
+
+  /** Exact, deduplicated batch lookup; never substitute a prefix match for an article token. */
+  async lookupDictionaryExact(version: string, forms: readonly string[]): Promise<DictionaryEntry[]> {
+    const checkedVersion = z.string().min(1).max(200).parse(version);
+    const normalized = [...new Set(z.array(z.string().min(1).max(500)).max(40_000).parse(forms).map(form => form.trim().toLowerCase()).filter(Boolean))];
+    if (!normalized.length) return [];
+    const tx = this.connection.transaction('dictionary', 'readonly');
+    return transactionResult(tx, (set, fail) => {
+      const rows: DictionaryEntry[] = [];
+      set(rows);
+      const index = tx.objectStore('dictionary').index('prefix');
+      for (const form of normalized) {
+        const request = index.getAll([checkedVersion, form]);
+        request.onsuccess = () => {
+          try {
+            for (const row of z.array(storedEntrySchema).parse(request.result as unknown)) {
+              rows.push({ id: row.id, word: row.word, translation: row.translation, phonetic: row.phonetic, tags: row.tags, rank: row.rank, basic: row.basic });
+            }
+          } catch (error) { fail(error); }
+        };
+      }
+    });
+  }
+
+  async readArticleDictionaryCache(version: string): Promise<unknown> {
+    const key = `article:${z.string().min(1).max(200).parse(version)}`;
+    const tx = this.connection.transaction('cache', 'readonly');
+    return transactionResult(tx, set => {
+      const request = tx.objectStore('cache').get(key);
+      request.onsuccess = () => set(request.result as unknown);
+    });
+  }
+
+  /** Separate disposable cache: no learning state, full-download receipt, or dictionary rows change. */
+  async saveArticleDictionaryCache(version: string, value: unknown): Promise<void> {
+    const key = `article:${z.string().min(1).max(200).parse(version)}`;
+    const tx = this.connection.transaction('cache', 'readwrite');
+    return transactionResult(tx, set => { tx.objectStore('cache').put(value, key); set(undefined); });
+  }
 }
 
 export function openWordDatabase(name = DATABASE_NAME, factory: IDBFactory | undefined = globalThis.indexedDB): Promise<WordDatabase> {

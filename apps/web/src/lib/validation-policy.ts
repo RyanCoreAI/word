@@ -1,4 +1,2 @@
-import { z } from 'zod';
-
-// Run before any app schemas are constructed. Avoid even caught eval probes under strict CSP.
-z.config({ jitless: true });
+// The core dependency also protects shared chunks and standalone analysis workers.
+import '../../../../packages/core/src/validation-policy';
