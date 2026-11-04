@@ -72,14 +72,20 @@ describe('durable learning state', () => {
     const answered = answer(active, 'look', 'known', getCurrentToken(active, 'look'), 3);
     const legacy = JSON.parse(JSON.stringify(answered)) as Record<string, unknown>;
     delete legacy.dailyActivity;
+    delete legacy.retentionDays;
+    for (const mode of Object.values(legacy.modes as Record<string, Record<string, unknown>>)) delete mode.retention;
+    delete (legacy.settings as Record<string, unknown>).retentionEnabled;
+    delete (legacy.settings as Record<string, unknown>).retentionDailyLimit;
     for (const entry of legacy.history as Record<string, unknown>[]) {
       delete entry.activityDate;
       delete entry.previousDailyActivity;
+      delete entry.retentionChange;
     }
     await putRaw(name, legacy);
     const read = await db.readState(words, 'v1');
-    expect(read?.modes).toEqual(answered.modes);
+    expect(read?.modes).toEqual({ look: { ...answered.modes.look, retention: {} }, listen: { ...answered.modes.listen, retention: {} } });
     expect(read?.dailyActivity).toEqual({});
+    expect(read?.retentionDays).toEqual({});
     const backup = JSON.stringify({ format: 'yanxai-word-backup', version: 1, exportedAt: 4, state: legacy });
     expect(parseBackup(backup, words, 'v1').dailyActivity).toEqual({});
   });
@@ -169,5 +175,102 @@ describe('atomic full dictionary shards', () => {
     expect(await db.getChunkReceipts('v1')).toHaveLength(1);
     expect(await db.searchDictionary('v1', 'abi')).toEqual([]);
     expect(await db.searchDictionary('v1', 'aba')).toHaveLength(1);
+  });
+});
+
+describe('local Chinese dictionary lookup', () => {
+  function entry(word: string, translation: string, rank = 1): Word {
+    return { id: word, word, translation, phonetic: '', tags: [], rank, basic: false };
+  }
+  function receipt(id: string, count: number, version = 'v1') {
+    return { version, id, count, sha256: 'a'.repeat(64) };
+  }
+  function observeDictionaryReads() {
+    const original = IDBObjectStore.prototype.getAll;
+    const batches: number[] = [];
+    vi.spyOn(IDBObjectStore.prototype, 'getAll').mockImplementation(function (this: IDBObjectStore, query?: IDBValidKey | IDBKeyRange | null, count?: number) {
+      if (this.name === 'dictionary' && this.transaction.mode === 'readonly') batches.push(count ?? 0);
+      return original.call(this, query, count);
+    });
+    return batches;
+  }
+
+  it('returns only public Word fields from the selected imported dictionary version', async () => {
+    const db = await open();
+    const first = entry('health', 'n. 健康', 20);
+    const second = entry('healthy', 'adj. 健康的', 1);
+    const otherVersion = entry('fitness', 'n. 健康', 1);
+    await db.importDictionaryChunk(receipt('first', 2), [first, second]);
+    await db.importDictionaryChunk(receipt('first', 1, 'v2'), [otherVersion]);
+    expect(await db.searchDictionary('v1', '　健康　')).toEqual([first, second]);
+    expect(await db.searchDictionary('v2', '健康')).toEqual([otherVersion]);
+    expect(await db.searchDictionary('absent', '健康')).toEqual([]);
+    expect(await db.readRawState()).toBeUndefined();
+  });
+
+  it('scans beyond 1500 records and ranks a late exact sense ahead of earlier partial matches', async () => {
+    const db = await open();
+    const entries = Array.from({ length: 1505 }, (_, rank) => entry(`word-${String(rank).padStart(4, '0')}`, rank < 70 ? 'n. 目标之一' : 'n. 无关词义', rank));
+    const last = entry('zz-last', 'n. 目标', 100_000);
+    await db.importDictionaryChunk(receipt('large', entries.length + 1), [...entries, last]);
+    const batches = observeDictionaryReads();
+    const result = await db.searchDictionary('v1', '目标', 60);
+    expect(result.map(word => word.id)).toEqual([last.id, ...entries.slice(0, 59).map(word => word.id)]);
+    expect(batches).toEqual([1500, 1500]);
+  });
+
+  it('reuses repeated-query results but invalidates them after same-tab and another-tab shard imports', async () => {
+    const name = `chinese-cache-${databaseCounter++}`;
+    const first = await open(name); const second = await open(name);
+    const partial = entry('alpha', 'n. 目标之一', 10);
+    const exact = entry('zeta', 'n. 目标', 100);
+    const frequent = entry('beta', 'n. 目标', 1);
+    await first.importDictionaryChunk(receipt('first', 1), [partial]);
+    const batches = observeDictionaryReads();
+    expect(await first.searchDictionary('v1', '目标')).toEqual([partial]);
+    expect(batches).toHaveLength(1);
+    expect(await first.searchDictionary('v1', '目标')).toEqual([partial]);
+    expect(batches).toHaveLength(1);
+    await first.importDictionaryChunk(receipt('second', 1), [exact]);
+    expect(await first.searchDictionary('v1', '目标')).toEqual([exact, partial]);
+    expect(batches).toHaveLength(2);
+    await second.importDictionaryChunk(receipt('third', 1), [frequent]);
+    expect(await first.searchDictionary('v1', '目标')).toEqual([frequent, exact, partial]);
+    expect(batches).toHaveLength(3);
+    expect(await first.getChunkReceipts('v1')).toHaveLength(3);
+  });
+
+  it('rejects an already-cancelled query before starting any dictionary scan', async () => {
+    const db = await open();
+    await db.importDictionaryChunk(receipt('first', 1), [entry('target', 'n. 目标')]);
+    const batches = observeDictionaryReads();
+    const controller = new AbortController(); controller.abort();
+    await expect(db.searchDictionary('v1', '目标', 60, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(batches).toEqual([]);
+  });
+
+  it('aborts an in-flight readonly batch without returning partial results or damaging stored shards', async () => {
+    const db = await open();
+    const word = entry('target', 'n. 目标');
+    await db.importDictionaryChunk(receipt('first', 1), [word]);
+    const controller = new AbortController();
+    const original = IDBObjectStore.prototype.getAll;
+    const spy = vi.spyOn(IDBObjectStore.prototype, 'getAll').mockImplementation(function (this: IDBObjectStore, query?: IDBValidKey | IDBKeyRange | null, count?: number) {
+      const request = original.call(this, query, count);
+      if (this.name === 'dictionary' && this.transaction.mode === 'readonly') controller.abort();
+      return request;
+    });
+    await expect(db.searchDictionary('v1', '目标', 60, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    spy.mockRestore();
+    expect(await db.searchDictionary('v1', '目标')).toEqual([word]);
+    expect(await db.getChunkReceipts('v1')).toEqual([receipt('first', 1)]);
+  });
+
+  it('does not read IndexedDB for empty or overlong normalized queries', async () => {
+    const db = await open();
+    const batches = observeDictionaryReads();
+    expect(await db.searchDictionary('v1', '　 ')).toEqual([]);
+    expect(await db.searchDictionary('v1', '字'.repeat(301))).toEqual([]);
+    expect(batches).toEqual([]);
   });
 });

@@ -94,7 +94,12 @@ async function reportReady(target = page) { await target.locator('.article-repor
 async function readerReady(target = page) { await target.locator('.article-token').first().waitFor({ timeout: 60_000 }); await target.locator('.article-loading').waitFor({ state: 'detached' }); }
 async function material(name, target = page) { return target.locator('.article-material').filter({ has: target.getByRole('heading', { name, exact: true }) }); }
 async function closeSheet(target = page) { await target.getByRole('dialog', { name: '文章词义', exact: true }).getByRole('button', { name: '关闭弹窗', exact: true }).click(); }
-async function menu(target = page) { const details = target.locator('.article-menu'); if (!await details.getAttribute('open').then(value => value !== null)) await details.locator('summary').click(); return details; }
+async function backupSettings(target = page) {
+  await target.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '设置', exact: true }).click();
+  const expand = target.getByRole('button', { name: '文章库备份', exact: true });
+  if (await expand.getAttribute('aria-expanded') !== 'true') await expand.click();
+  const actions = target.getByLabel('文章库备份操作', { exact: true }); await actions.waitFor(); return actions;
+}
 async function screenshot(name, target = page) {
   await target.evaluate(() => document.fonts.ready.then(() => true));
   const filename = `${name}.png`; await target.screenshot({ path: path.join(output, filename), animations: 'disabled' }); report.screenshots.push({ name, file: filename, viewport: target.viewportSize() });
@@ -119,6 +124,7 @@ try {
     page = await createPage('mobile'); initialWordState = await wordState(page);
     assert.deepEqual(initialWordState.modes.look.progress, {}); assert.deepEqual(initialWordState.modes.listen.progress, {});
     await navReading(); await waitLibrary(value => value.articles.length === 0 && value.vocabulary.length === 0);
+    assert.equal(await page.locator('.article-menu').count(), 0); assert.equal(await page.getByRole('button', { name: '导出文章备份', exact: true }).count(), 0);
     await screenshot('01-mobile-materials');
     return { actualDictionaryVersion: initialWordState.dictionaryVersion, userRecordsInjected: false, viewport: page.viewportSize() };
   });
@@ -220,7 +226,7 @@ try {
     return { UTF8Bom: true, CRLFNormalized: true, encodingFailurePreservedExistingArticles: true };
   });
   await check('article backup exports all text, flags, positions and review records', async () => {
-    await backToMaterials(); const actions = await menu(); const downloading = page.waitForEvent('download');
+    await backToMaterials(); const actions = await backupSettings(); const downloading = page.waitForEvent('download');
     await actions.getByRole('button', { name: '导出文章备份', exact: true }).click(); const download = await downloading;
     backupPath = path.join(output, 'article-library-backup.json');
     try { await download.saveAs(backupPath); report.nativeDownload = { status: 'saved', actualSaveActionInvoked: true }; }
@@ -241,22 +247,24 @@ try {
     assert.equal(backup.format, 'yanxai-article-library-backup'); assert.equal(backup.library.articles.length, 2); assert.equal(backup.library.vocabulary.length, 2);
     assert.equal(backup.library.articles[0].readParagraph, 1); assert.equal(backup.library.articles[0].overrides.practice, 'known');
     assert.equal(backup.library.vocabulary[0].progress.wrongCount, 1); assert.equal(backup.state, undefined);
-    await actions.locator('summary').click();
-    return { filename: path.basename(backupPath), articles: 2, vocabulary: 2, wordBookExcluded: true };
+    return { filename: path.basename(backupPath), articles: 2, vocabulary: 2, wordBookExcluded: true, backupOnlyInSettings: true };
   });
   await check('restore rejects altered hashes and only replaces articles after explicit preview confirmation', async () => {
     const altered = structuredClone(backup); altered.library.articles[0].text += ' Altered text.';
     await page.locator('input[type=file][accept^=".json"]').setInputFiles({ name: 'altered.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(altered)) });
     await page.getByRole('alert').filter({ hasText: '备份无效' }).waitFor(); assert.equal((await library()).articles.length, 2);
+    await navReading();
     await page.getByRole('button', { name: `删除文章 ${title}`, exact: true }).click();
     await page.getByRole('dialog', { name: '删除这篇文章？', exact: true }).getByRole('button', { name: '确认删除', exact: true }).click();
     await waitLibrary(value => value.articles.length === 1 && value.vocabulary.length === 0);
+    await backupSettings();
     await page.locator('input[type=file][accept^=".json"]').setInputFiles(backupPath);
     await page.getByRole('dialog', { name: '确认恢复文章库', exact: true }).waitFor(); assert.equal((await library()).articles.length, 1);
     await page.getByRole('button', { name: '确认替换文章库', exact: true }).click();
     const saved = await waitLibrary(value => value.articles.length === 2 && value.vocabulary.length === 2);
     const content = value => ({ articles: value.articles, vocabulary: value.vocabulary }); assert.deepEqual(content(saved), content(backup.library));
     assert.deepEqual(await wordState(page), initialWordState);
+    assert.equal(await page.locator('.article-library').count(), 0); await navReading();
     return { invalidHashRejected: true, previewBeforeWrite: true, fullContentRestored: true, wordBookUnchanged: true };
   });
   await check('imported HTML and script are plain text and cannot execute or load image URLs', async () => {
@@ -290,8 +298,10 @@ try {
   });
   await check('desktop Chrome restores the same real backup through UI and renders without overflow', async () => {
     const desktop = await createPage('desktop'); const before = await wordState(desktop); await navReading(desktop); await waitLibrary(value => value.articles.length === 0, desktop);
+    await backupSettings(desktop);
     await desktop.locator('input[type=file][accept^=".json"]').setInputFiles(backupPath);
     await desktop.getByRole('button', { name: '确认替换文章库', exact: true }).click(); await waitLibrary(value => value.articles.length === 2, desktop);
+    assert.equal(await desktop.locator('.article-library').count(), 0); await navReading(desktop);
     await (await material(title, desktop)).getByRole('button', { name: '分析报告', exact: true }).click(); await reportReady(desktop);
     const measured = await layout(desktop, 'desktop-report'); await screenshot('05-desktop-analysis', desktop); assert.deepEqual(await wordState(desktop), before);
     return { ...measured, separateProfile: true, backupImportedViaUI: true };

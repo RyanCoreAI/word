@@ -259,7 +259,7 @@ async function assertSingleLine(page) {
 }
 
 try {
-  const contracts = await createServer({ configFile: false, root, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  const contracts = await createServer({ configFile: false, root, server: { middlewareMode: true, hmr: false, watch: null }, appType: 'custom' });
   try { core = await contracts.ssrLoadModule('/packages/core/src/index.ts'); } finally { await contracts.close(); }
   const manifestResponse = await fetch(new URL('data/manifest.json', baseUrl)); assert.equal(manifestResponse.status, 200);
   manifest = await manifestResponse.json();

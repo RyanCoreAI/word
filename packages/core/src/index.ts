@@ -5,3 +5,4 @@ export * from './activity';
 export * from './navigation';
 export * from './daily-review';
 export * from './study-plan';
+export * from './retention';

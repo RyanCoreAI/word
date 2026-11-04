@@ -4,12 +4,13 @@ import { cloneDailyWordActivity, getLocalDateKey, isLocalDateKey } from './activ
 import { recordStudyTrail, undoStudyTrail } from './navigation';
 import { completeDailyReview, getYesterdayReviewWordIds, reserveDailyReview, rewindDailyReview } from './daily-review';
 import { reconcileStudyPlanCheckIns, recordStudyPlanAnswer, rewindStudyPlans } from './study-plan';
+import { recordRetentionAnswer, reserveRetention, rewindRetentionDays, selectRetentionWords } from './retention';
 import type { AppState, AnswerResult, Mode, Settings, StudySession, UndoEntry, Word, WordProgress } from './types';
 
 const own = <T>(record: Record<string, T>, key: string): T | undefined =>
   Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
 const otherMode = (mode: Mode): Mode => mode === 'look' ? 'listen' : 'look';
-const cloneSession = (session: StudySession | null): StudySession | null => session ? { ...session, items: [...session.items] } : null;
+const cloneSession = (session: StudySession | null): StudySession | null => session ? { ...session, items: [...session.items], ...(session.retentionIds ? { retentionIds: [...session.retentionIds] } : {}) } : null;
 
 function touch(state: AppState, now: number): AppState {
   if (!Number.isSafeInteger(now) || now < 0) throw new Error('Invalid timestamp');
@@ -24,10 +25,10 @@ export function createInitialState(dictionaryVersion: string, now: number): AppS
     schemaVersion: 1, dictionaryVersion, revision: 0, updatedAt: now,
     settings: { ...DEFAULT_SETTINGS },
     modes: {
-      look: { progress: {}, session: null, groupNumber: 0 },
-      listen: { progress: {}, session: null, groupNumber: 0 },
+      look: { progress: {}, session: null, groupNumber: 0, retention: {} },
+      listen: { progress: {}, session: null, groupNumber: 0, retention: {} },
     },
-    skipped: [], history: [], dailyActivity: {}, studyTrail: [], dailyReview: {}, studyPlans: {},
+    skipped: [], history: [], dailyActivity: {}, studyTrail: [], dailyReview: {}, studyPlans: {}, retentionDays: {},
   };
 }
 
@@ -86,14 +87,16 @@ export function ensureSession(state: AppState, words: readonly Word[], mode: Mod
   // Every outstanding review is retained even after the requested size shrinks.
   const remainingReview = review.filter(word => !dueIds.has(word.id));
   const selected = [...due, ...remainingReview];
-  const ids = [...selected, ...fresh.slice(0, Math.max(0, state.settings.groupSize - selected.length))].map(word => word.id);
+  const retention = selectRetentionWords(state, words, mode, today, new Set(selected.map(word => word.id)));
+  const ids = [...selected, ...retention, ...fresh.slice(0, Math.max(0, state.settings.groupSize - selected.length - retention.length))].map(word => word.id);
   if (!ids.length && modeState.session?.status === 'finished' && !modeState.session.items.length) return state;
   const groupNumber = modeState.groupNumber + (ids.length ? 1 : 0);
   const session: StudySession = {
     groupNumber, items: ids, cursor: 0, revealed: false,
     status: ids.length ? 'active' : 'finished', known: 0, unknown: 0, skipped: 0,
+    ...(retention.length ? { retentionIds: retention.map(word => word.id), retentionDate: today } : {}),
   };
-  return touch({ ...state, dailyReview: reserveDailyReview(state, today, mode, groupNumber, due.map(word => word.id)), modes: { ...state.modes, [mode]: { ...modeState, groupNumber, session } } }, now);
+  return touch({ ...state, retentionDays: reserveRetention(state, mode, today, groupNumber, retention.map(word => word.id)), dailyReview: reserveDailyReview(state, today, mode, groupNumber, due.map(word => word.id)), modes: { ...state.modes, [mode]: { ...modeState, groupNumber, session } } }, now);
 }
 
 function journal(state: AppState, mode: Mode, action: UndoEntry['action'], id: string): UndoEntry {
@@ -156,10 +159,12 @@ export function answer(state: AppState, mode: Mode, result: AnswerResult, expect
   activity[mode][result] += 1;
   const trail = recordStudyTrail(state, mode, result, id, session, now);
   const dailyReview = completeDailyReview(state, mode, id, session.groupNumber, activityDate);
-  const plans = recordStudyPlanAnswer(state, mode, id, activityDate, !previous);
+  const retention = recordRetentionAnswer(state, mode, id, result, previous, progress, session, activityDate);
+  const plans = retention.isRetention ? { studyPlans: state.studyPlans, changes: [] } : recordStudyPlanAnswer(state, mode, id, activityDate, !previous);
   return touch({
     ...state,
-    modes: { ...state.modes, [mode]: { ...modeState, progress: { ...modeState.progress, [id]: progress }, session: nextSession } },
+    modes: { ...state.modes, [mode]: { ...modeState, retention: retention.retention, progress: { ...modeState.progress, [id]: progress }, session: nextSession } },
+    retentionDays: retention.retentionDays,
     dailyActivity: { ...state.dailyActivity, [activityDate]: { ...day, [id]: activity } },
     studyTrail: trail.studyTrail,
     dailyReview: dailyReview.dailyReview,
@@ -169,6 +174,7 @@ export function answer(state: AppState, mode: Mode, result: AnswerResult, expect
       previousDailyActivity: previousDailyActivity ? cloneDailyWordActivity(previousDailyActivity) : null,
       ...(dailyReview.change ? { dailyReviewChange: dailyReview.change } : {}),
       ...(plans.changes.length ? { planChanges: plans.changes } : {}),
+      ...(retention.change ? { retentionChange: retention.change } : {}),
     }].slice(-20),
   }, now);
 }
@@ -217,6 +223,11 @@ export function undo(state: AppState, now: number): AppState {
   const progress = { ...modeState.progress };
   if (entry.previousProgress) progress[entry.wordId] = { ...entry.previousProgress };
   else delete progress[entry.wordId];
+  const retention = { ...modeState.retention };
+  if (entry.retentionChange) {
+    if (entry.retentionChange.previous) retention[entry.wordId] = { ...entry.retentionChange.previous };
+    else delete retention[entry.wordId];
+  }
   const other = otherMode(entry.mode);
   const dailyActivity = { ...state.dailyActivity };
   if (entry.activityDate !== undefined && entry.previousDailyActivity !== undefined) {
@@ -230,10 +241,11 @@ export function undo(state: AppState, now: number): AppState {
     ...state,
     dailyActivity,
     dailyReview: rewindDailyReview(state.dailyReview, entry),
+    retentionDays: rewindRetentionDays(state.retentionDays, entry),
     studyTrail: undoStudyTrail(state, entry),
     modes: {
       ...state.modes,
-      [entry.mode]: { ...modeState, progress, session: cloneSession(entry.previousSession), groupNumber: entry.previousGroupNumber },
+      [entry.mode]: { ...modeState, progress, retention, session: cloneSession(entry.previousSession), groupNumber: entry.previousGroupNumber },
       [other]: { ...state.modes[other], session: cloneSession(entry.previousOtherSession), groupNumber: entry.previousOtherGroupNumber },
     },
     skipped: entry.wasSkipped ? [...new Set([...state.skipped, entry.wordId])] : state.skipped.filter(id => id !== entry.wordId),
@@ -262,7 +274,7 @@ export function restartWord(state: AppState, id: string, mode: Mode, now: number
   if (!progress || progress.status !== 'completed') return state;
   return touch({
     ...state, history: [], skipped: state.skipped.filter(value => value !== id),
-    modes: { ...state.modes, [mode]: { ...modeState, progress: { ...modeState.progress, [id]: { ...progress, status: 'learning', streak: 0 } } } },
+    modes: { ...state.modes, [mode]: { ...modeState, retention: { ...modeState.retention, [id]: { ...own(modeState.retention, id), stage: 0, dueOn: null, lapses: own(modeState.retention, id)?.lapses ?? 0 } }, progress: { ...modeState.progress, [id]: { ...progress, status: 'learning', streak: 0 } } } },
   }, now);
 }
 

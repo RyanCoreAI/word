@@ -62,6 +62,15 @@ h1,h2,h3,p { margin: 0; }
 .home-search-results .wl { box-shadow: none; border-radius: 0; }
 .search-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink-3); padding: 12px 16px 0; }
 .search-caption button { color: var(--accent-ink); }
+.search-scope { margin: 0; padding: 0 16px 14px; font-size: 12px; line-height: 1.7; color: var(--ink-3); }
+.retention-panel { padding: 18px; }
+.retention-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.retention-heading strong { font-size: 14px; }
+.retention-heading span, .retention-panel p { font-size: 12px; color: var(--accent-ink); }
+.retention-panel p { margin-top: 8px; }
+.retention-panel small { display: block; margin-top: 6px; font-size: 11px; line-height: 1.7; color: var(--ink-3); }
+.retention-actions { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; }
+.retention-actions .row-action { min-height: 44px; font-size: 12px; }
 .calendar-panel { padding: 18px 14px 14px; }
 .calendar-heading, .calendar-heading > div, .calendar-month { display: flex; align-items: center; }
 .calendar-heading { justify-content: space-between; gap: 8px; padding-inline: 4px; }

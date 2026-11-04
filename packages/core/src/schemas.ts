@@ -4,6 +4,7 @@ import { isLocalDateKey } from './activity';
 import { MAX_STUDY_TRAIL } from './navigation';
 import { previousLocalDateKey, rewindDailyReview } from './daily-review';
 import { MAX_STUDY_PLAN_DAYS, MAX_STUDY_PLANS, rewindStudyPlans, studyPlanKey } from './study-plan';
+import { addRetentionDays, recordRetentionAnswer, RETENTION_INTERVALS, rewindRetentionDays } from './retention';
 import type { AppState, StudySession, Word, WordProgress } from './types';
 
 export const MAX_WORDS = 1_000_000;
@@ -56,6 +57,7 @@ export const settingsSchema = z.object({
   rate: z.number().min(0.5).max(1.5), autoSpeak: z.boolean(),
   skipHintSeen: z.boolean().default(false),
   haptics: z.boolean().default(true), soundEffects: z.boolean().default(true),
+  retentionEnabled: z.boolean().default(true), retentionDailyLimit: z.union([z.literal(10), z.literal(20), z.literal(30)]).default(20),
 }).strict();
 
 export const wordProgressSchema = z.object({
@@ -73,7 +75,10 @@ export const wordProgressSchema = z.object({
 export const sessionSchema = z.object({
   groupNumber: integer, items: idsSchema, cursor: integer, revealed: z.boolean(),
   status: z.enum(['active', 'finished']), known: counter, unknown: counter, skipped: counter,
+  retentionIds: z.array(idSchema).min(1).max(5).refine(value => new Set(value).size === value.length, 'Duplicate retention cards').optional(),
+  retentionDate: localDateKeySchema.optional(),
 }).strict().superRefine((value, ctx) => {
+  if ((value.retentionIds === undefined) !== (value.retentionDate === undefined) || value.retentionIds?.some(id => !value.items.includes(id))) ctx.addIssue({ code: 'custom', message: 'Invalid retention session source' });
   if (value.cursor > value.items.length) ctx.addIssue({ code: 'custom', message: 'Cursor exceeds group size' });
   if (value.status === 'active' && (value.cursor >= value.items.length || !value.groupNumber)) ctx.addIssue({ code: 'custom', message: 'Active group has no current word' });
   if (value.status === 'finished' && (value.cursor !== value.items.length || value.revealed)) ctx.addIssue({ code: 'custom', message: 'Finished group has unfinished work' });
@@ -81,9 +86,23 @@ export const sessionSchema = z.object({
   if (value.revealed && !value.unknown) ctx.addIssue({ code: 'custom', message: 'Revealed answer has not been counted' });
 });
 
+export const retentionProgressSchema = z.object({
+  stage: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+  dueOn: localDateKeySchema.nullable(), lastConfirmedOn: localDateKeySchema.optional(), lapses: counter,
+}).strict().superRefine((value, ctx) => {
+  if (value.dueOn === null && value.stage !== 0 || value.dueOn !== null && (!value.lastConfirmedOn || value.dueOn !== addRetentionDays(value.lastConfirmedOn, RETENTION_INTERVALS[value.stage]))) ctx.addIssue({ code: 'custom', message: 'Invalid retention due date or stage' });
+});
+const retentionMarkerSchema = z.object({
+  groupNumber: integer.positive(), firstGroupNumber: integer.positive(), completed: z.boolean(), failed: z.boolean(), completedOn: localDateKeySchema.optional(),
+}).strict().refine(value => value.firstGroupNumber <= value.groupNumber && value.completed === (value.completedOn !== undefined) && (!value.failed || value.completed), 'Invalid retention marker');
+const retentionModeDaySchema = z.record(idSchema, retentionMarkerSchema).refine(value => Object.keys(value).length <= 1000, 'Too many retention cards');
+const retentionDaysSchema = z.record(localDateKeySchema, z.object({ extraAllowance: integer.max(990).refine(value => value % 5 === 0, 'Invalid manual retention allowance'), baseLimit: z.union([z.literal(10), z.literal(20), z.literal(30)]), look: retentionModeDaySchema, listen: retentionModeDaySchema }).strict()
+  .refine(value => Object.keys(value.look).length + Object.keys(value.listen).length <= Math.min(1000, value.baseLimit + value.extraAllowance), 'Too many shared daily retention cards'))
+  .refine(value => Object.keys(value).length <= 100_000, 'Too many retention dates');
 const modeStateSchema = z.object({
   progress: z.record(idSchema, wordProgressSchema).refine(value => Object.keys(value).length <= MAX_WORDS, 'Too many progress records'),
   session: sessionSchema.nullable(), groupNumber: integer,
+  retention: z.record(idSchema, retentionProgressSchema).refine(value => Object.keys(value).length <= MAX_WORDS, 'Too many retention records').default({}),
 }).strict();
 
 export const studyTrailEntrySchema = z.object({
@@ -102,7 +121,10 @@ export const undoEntrySchema = z.object({
   dailyReviewChange: z.object({ date: localDateKeySchema, previous: dailyReviewEntrySchema.nullable() }).strict().optional(),
   planChanges: z.array(planAnswerChangeSchema).min(1).max(MAX_STUDY_PLANS)
     .refine(value => new Set(value.map(item => item.key)).size === value.length, 'Duplicate study plan undo delta').optional(),
+  retentionChange: z.object({ previous: retentionProgressSchema.nullable(), date: localDateKeySchema.optional(), previousMarker: retentionMarkerSchema.optional() }).strict().optional(),
 }).strict().superRefine((value, ctx) => {
+  if (value.retentionChange && ((value.action !== 'known' && value.action !== 'unknown') || value.activityDate === undefined || (value.retentionChange.date === undefined) !== (value.retentionChange.previousMarker === undefined))) ctx.addIssue({ code: 'custom', message: 'Invalid retention undo snapshot' });
+  if (value.retentionChange?.previousMarker && (value.retentionChange.previousMarker.completed || value.retentionChange.previousMarker.failed || value.retentionChange.previousMarker.groupNumber !== value.previousGroupNumber || value.previousSession.retentionDate !== value.retentionChange.date || !value.previousSession.retentionIds?.includes(value.wordId))) ctx.addIssue({ code: 'custom', message: 'Invalid retention reservation undo source' });
   if ((value.activityDate === undefined) !== (value.previousDailyActivity === undefined)) ctx.addIssue({ code: 'custom', message: 'Incomplete calendar undo snapshot' });
   if (value.activityDate !== undefined && value.action !== 'known' && value.action !== 'unknown') ctx.addIssue({ code: 'custom', message: 'Only answers update the calendar' });
   if (value.evictedStudyTrailEntry && (value.studyTrailId === undefined || value.evictedStudyTrailEntry.id >= value.studyTrailId)) ctx.addIssue({ code: 'custom', message: 'Invalid evicted trail snapshot' });
@@ -119,6 +141,7 @@ export const appStateSchema = z.object({
   studyTrail: z.array(studyTrailEntrySchema).max(MAX_STUDY_TRAIL).default([]),
   dailyReview: dailyReviewSchema.default({}),
   studyPlans: studyPlansSchema.default({}),
+  retentionDays: retentionDaysSchema.default({}),
 }).strict();
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -163,6 +186,50 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
   const dailyActivity = { ...state.dailyActivity };
   let dailyReview = state.dailyReview;
   let studyPlans = state.studyPlans;
+  let retentionDays = state.retentionDays;
+  const retentionByMode = { look: { ...state.modes.look.retention }, listen: { ...state.modes.listen.retention } };
+  const checkRetention = (): void => {
+    const completed: Record<string, number> = {}; const failed: Record<string, number> = {}; const confirmations = new Set<string>();
+    for (const [date, day] of Object.entries(retentionDays)) for (const mode of ['look', 'listen'] as const) {
+      for (const [id, marker] of Object.entries(day[mode])) {
+        reference(id); assert(marker.groupNumber <= state.modes[mode].groupNumber, '巩固排期来自未来分组');
+        if (!marker.completed) continue;
+        assert(marker.completedOn && marker.completedOn >= date, '巩固完成日期早于排期');
+        const key = `${mode}:${id}`; const once = `${key}:${marker.completedOn}`;
+        assert(!confirmations.has(once), '同日重复推进巩固'); confirmations.add(once);
+        const activity = ownActivity(dailyActivity, marker.completedOn, id, mode);
+        const answers = Object.hasOwn(dailyActivity[marker.completedOn] ?? {}, id) ? dailyActivity[marker.completedOn]?.[id]?.[mode] : undefined;
+        assert(activity > 0 && (marker.failed ? answers?.unknown : answers?.known), '巩固完成缺少真实作答');
+        completed[key] = (completed[key] ?? 0) + 1; failed[key] = (failed[key] ?? 0) + Number(marker.failed);
+        const progress = Object.hasOwn(progressByMode[mode], id) ? progressByMode[mode][id] : undefined;
+        assert(progress && completed[key]! <= progress.seenCount && failed[key]! <= progress.wrongCount, '巩固标记超过真实作答');
+        assert(Object.hasOwn(retentionByMode[mode], id), '巩固完成缺少排期记录');
+      }
+    }
+    for (const mode of ['look', 'listen'] as const) for (const [id, schedule] of Object.entries(retentionByMode[mode])) {
+      reference(id); const progress = Object.hasOwn(progressByMode[mode], id) ? progressByMode[mode][id] : undefined;
+      assert(progress && schedule.lapses <= progress.wrongCount, '巩固遗忘次数缺少真实错误');
+      assert(schedule.dueOn === null ? progress.status === 'learning' : progress.status === 'completed', '巩固排期与本轮状态不一致');
+      assert(schedule.stage <= (progress.rightCount - 1) && schedule.stage <= ((completed[`${mode}:${id}`] ?? 0) - (failed[`${mode}:${id}`] ?? 0)), '巩固阶段超过真实确认次数');
+      if (schedule.lastConfirmedOn) {
+        const activity = Object.hasOwn(dailyActivity[schedule.lastConfirmedOn] ?? {}, id) ? dailyActivity[schedule.lastConfirmedOn]?.[id]?.[mode] : undefined;
+        assert(activity?.known, '巩固确认日期缺少真实认识记录');
+      }
+    }
+  };
+  checkRetention();
+  const checkRetentionSession = (session: StudySession | null, mode: 'look' | 'listen', days: AppState['retentionDays'], groupNumber: number): void => {
+    if (session?.retentionDate) for (const id of session.retentionIds ?? []) {
+      const marker = Object.hasOwn(days[session.retentionDate]?.[mode] ?? {}, id) ? days[session.retentionDate]?.[mode][id] : undefined;
+      assert(marker?.groupNumber === session.groupNumber, '当前巩固卡缺少本组排期');
+      const position = session.items.indexOf(id);
+      assert(!marker.completed || position < session.cursor || position === session.cursor && session.revealed, '巩固卡尚未作答却已完成');
+    }
+    for (const [date, day] of Object.entries(days)) for (const [id, marker] of Object.entries(day[mode])) if (session?.items.length && marker.groupNumber === groupNumber) {
+      assert(session?.retentionDate === date && session.retentionIds?.includes(id), '本组巩固排期缺少对应会话卡');
+    }
+  };
+  for (const mode of ['look', 'listen'] as const) checkRetentionSession(state.modes[mode].session, mode, state.retentionDays, state.modes[mode].groupNumber);
   const wordMap = new Map(words.map(word => [word.id, word]));
   const checkStudyPlans = (): void => {
     for (const [key, plan] of Object.entries(studyPlans)) {
@@ -303,6 +370,26 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
     const map = progressByMode[entry.mode];
     const progress = Object.prototype.hasOwnProperty.call(map, entry.wordId) ? map[entry.wordId] : undefined;
     const before = entry.previousProgress;
+    if (entry.previousSession.retentionIds?.includes(entry.wordId) && (entry.action === 'known' || entry.action === 'unknown')) assert(entry.retentionChange, '巩固作答缺少撤销快照');
+    if (entry.retentionChange) {
+      const beforeRetention = { ...retentionByMode[entry.mode] };
+      if (entry.retentionChange.previous) beforeRetention[entry.wordId] = entry.retentionChange.previous;
+      else delete beforeRetention[entry.wordId];
+      const previousDays = rewindRetentionDays(retentionDays, entry);
+      const replay = recordRetentionAnswer({ ...state, retentionDays: previousDays, modes: {
+        ...state.modes, [entry.mode]: { ...state.modes[entry.mode], retention: beforeRetention },
+      } }, entry.mode, entry.wordId, entry.action as 'known' | 'unknown', before ?? undefined, progress!, entry.previousSession, entry.activityDate!);
+      assert(JSON.stringify(retentionByMode[entry.mode][entry.wordId] ?? null) === JSON.stringify(replay.retention[entry.wordId] ?? null), '巩固撤销快照与作答不一致');
+      if (entry.retentionChange.date) {
+        const marker = retentionDays[entry.retentionChange.date]?.[entry.mode][entry.wordId];
+        const expected = replay.retentionDays[entry.retentionChange.date]?.[entry.mode][entry.wordId];
+        assert(marker && JSON.stringify(marker) === JSON.stringify(expected), '巩固撤销标记与真实作答不一致');
+      }
+      retentionByMode[entry.mode] = beforeRetention;
+    }
+    retentionDays = rewindRetentionDays(retentionDays, entry);
+    checkRetentionSession(entry.previousSession, entry.mode, retentionDays, entry.previousGroupNumber);
+    checkRetentionSession(entry.previousOtherSession, entry.mode === 'look' ? 'listen' : 'look', retentionDays, entry.previousOtherGroupNumber);
     if (before) assert(before.lastGroup <= entry.previousGroupNumber, '撤销快照来自未来分组');
     if (entry.action === 'known' || entry.action === 'unknown') {
       assert(progress, '撤销记录缺少作答');
@@ -344,6 +431,7 @@ export function parseAppState(input: unknown, words: readonly Word[], dictionary
   checkStudyTrail();
   checkDailyReview();
   checkStudyPlans();
+  checkRetention();
   return state;
 }
 

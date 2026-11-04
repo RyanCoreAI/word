@@ -76,7 +76,7 @@ try {
   });
   await shot('01-android-home');
   await check('dictionary search works from home without requiring full dictionary', async () => {
-    await page.getByRole('searchbox', { name: '搜索词典 · 输入英文单词', exact: true }).fill('elaborate');
+    await page.getByRole('searchbox', { name: '搜索词典 · 输入中文或英文', exact: true }).fill('elaborate');
     const result = page.locator('.home-search-results .it').filter({ hasText: 'elaborate' }).first();
     await result.click();
     await page.getByRole('dialog', { name: '单词详情' }).waitFor();
@@ -237,7 +237,7 @@ try {
   await check('Android viewport fills screen and resized keyboard layout stays usable', async () => {
     assert.equal(await page.locator('.app-screen').evaluate(element => element.getBoundingClientRect().width), devices['Pixel 7'].viewport.width);
     await page.setViewportSize({ width: 360, height: 440 });
-    const search = page.getByRole('searchbox', { name: '搜索词典 · 输入英文单词', exact: true });
+    const search = page.getByRole('searchbox', { name: '搜索词典 · 输入中文或英文', exact: true });
     await search.fill('bank');
     const geometry = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth, scale: visualViewport.scale, touch: getComputedStyle(document.documentElement).touchAction, meta: document.querySelector('meta[name="viewport"]').content }));
     assert.equal(geometry.scrollWidth, geometry.width);

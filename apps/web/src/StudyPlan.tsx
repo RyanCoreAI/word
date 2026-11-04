@@ -34,10 +34,13 @@ export function StudyPlanCard({ deck, mode, summary, remainingNewWords, scopeCha
 function WheelColumn({ label, values, value, suffix, onChange }: { label: string; values: number[]; value: number; suffix: string; onChange: (value: number) => void }) {
   const list = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A scroll debounce can outlive a date change or reset in another column.
+  const selection = useRef({ values, value, onChange });
   const id = useId();
+  useLayoutEffect(() => { selection.current = { values, value, onChange }; });
   useLayoutEffect(() => { const element = list.current; const index = values.indexOf(value); if (element && index >= 0 && Math.abs(element.scrollTop - index * 44) > 1) element.scrollTop = index * 44; }, [value, values]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  const select = (index: number) => { const selected = values[Math.max(0, Math.min(values.length - 1, index))]; if (selected !== undefined) onChange(selected); };
+  const select = (index: number) => { const current = selection.current; const selected = current.values[Math.max(0, Math.min(current.values.length - 1, index))]; if (selected !== undefined && selected !== current.value) current.onChange(selected); };
   const key = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = values.indexOf(value);
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); select(index + (event.key === 'ArrowUp' ? -1 : 1)); }

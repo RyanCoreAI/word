@@ -21,7 +21,7 @@ const state = () => page.evaluate(() => new Promise((resolve, reject) => {
 async function check(name, action) { const detail = await action(); report.checks.push({ name, status: 'passed', detail }); console.log(JSON.stringify({ name, detail })); }
 async function shot(name) { await page.evaluate(() => document.fonts.ready.then(() => true)); await page.screenshot({ path: path.join(output, name + '.png'), animations: 'disabled' }); }
 const nav = label => page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: label, exact: true }).click();
-const search = () => page.getByRole('searchbox', { name: '搜索词典 · 输入英文单词', exact: true });
+const search = () => page.getByRole('searchbox', { name: '搜索词典 · 输入中文或英文', exact: true });
 async function openWord(word, hasCollocations = true) {
   await search().fill(word);
   await page.locator('.home-search-results .it').filter({ hasText: new RegExp('^' + word + '\\b') }).first().click();

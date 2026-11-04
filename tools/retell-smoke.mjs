@@ -88,9 +88,15 @@ try {
     assert.equal(await page.locator('textarea').count(), 0); assert.match(await page.locator('.retell-own small').innerText(), /不等于发音或语法评分/);
     await page.locator('.retell-own summary').click(); await page.locator('.retell-comparison').evaluate(element => { element.scrollTop = 0; });
     await shot('05-comparison-mobile'); await page.setViewportSize({ width: 1440, height: 1000 }); await shot('05-comparison-desktop'); await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.getByRole('button', { name: '导出文字', exact: true }).count(), 0);
+    const beforeExport = await readAttempts(); const asrRequests = report.asrRequests.length;
+    await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '设置', exact: true }).click();
+    await page.getByRole('button', { name: '复述文字备份', exact: true }).click();
+    assert.equal(await page.locator('.retell-library').count(), 0);
     await page.getByRole('button', { name: '导出文字', exact: true }).click(); const field = page.getByRole('textbox', { name: '复述文字 JSON', exact: true }); const value = JSON.parse(await field.inputValue()); assert.equal(value.attempts[0].transcript, completed.transcript); assert.equal(await field.getAttribute('readonly'), '');
     await page.getByRole('button', { name: '复制完整文本', exact: true }).click(); assert.ok(await field.evaluate(element => element.selectionEnd > element.selectionStart)); await page.getByRole('button', { name: '关闭弹窗', exact: true }).click();
-    return { references: 2, keyPoints: 3, playableActualRecording: true, exportMatchesAsr: true, automaticGrade: false };
+    assert.deepEqual(await readAttempts(), beforeExport); assert.equal(report.asrRequests.length, asrRequests);
+    return { references: 2, keyPoints: 3, playableActualRecording: true, exportMatchesAsr: true, backupOnlyInSettings: true, exportChangesNoRecord: true, passiveAsrRequestsInSettings: 0, automaticGrade: false };
   });
   await check('offline reload keeps completed result and performs another entirely local recording/ASR', async () => {
     await page.evaluate(() => navigator.serviceWorker.ready.then(() => true)); await page.waitForFunction(() => navigator.serviceWorker.controller);

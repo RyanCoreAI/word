@@ -23,6 +23,8 @@ export interface Settings {
   skipHintSeen: boolean;
   haptics: boolean;
   soundEffects: boolean;
+  retentionEnabled: boolean;
+  retentionDailyLimit: 10 | 20 | 30;
 }
 
 export interface WordProgress {
@@ -44,12 +46,48 @@ export interface StudySession {
   known: number;
   unknown: number;
   skipped: number;
+  retentionIds?: string[];
+  retentionDate?: string;
+}
+
+export interface RetentionProgress {
+  stage: 0 | 1 | 2 | 3 | 4;
+  dueOn: string | null;
+  lastConfirmedOn?: string;
+  lapses: number;
+}
+
+export interface RetentionMarker {
+  groupNumber: number;
+  firstGroupNumber: number;
+  completed: boolean;
+  failed: boolean;
+  completedOn?: string;
+}
+
+export interface RetentionDay {
+  extraAllowance: number;
+  baseLimit: 10 | 20 | 30;
+  look: Record<string, RetentionMarker>;
+  listen: Record<string, RetentionMarker>;
+}
+
+export interface RetentionSummary {
+  due: number;
+  totalDue: number;
+  completedToday: number;
+  scheduledToday: number;
+  remainingAllowance: number;
+  dailyLimit: number;
+  available: number;
+  unreservedDue: number;
 }
 
 export interface ModeState {
   progress: Record<string, WordProgress>;
   session: StudySession | null;
   groupNumber: number;
+  retention: Record<string, RetentionProgress>;
 }
 
 export interface ActivityCounts {
@@ -174,6 +212,11 @@ export interface UndoEntry {
   evictedStudyTrailEntry?: StudyTrailEntry;
   dailyReviewChange?: { date: string; previous: DailyReviewEntry | null };
   planChanges?: StudyPlanAnswerChange[];
+  retentionChange?: {
+    previous: RetentionProgress | null;
+    date?: string;
+    previousMarker?: RetentionMarker;
+  };
 }
 
 export interface AppState {
@@ -189,6 +232,7 @@ export interface AppState {
   studyTrail: StudyTrailEntry[];
   dailyReview: DailyReview;
   studyPlans: Record<string, StudyPlan>;
+  retentionDays: Record<string, RetentionDay>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -202,6 +246,8 @@ export const DEFAULT_SETTINGS: Settings = {
   skipHintSeen: false,
   haptics: true,
   soundEffects: true,
+  retentionEnabled: true,
+  retentionDailyLimit: 20,
 };
 
 export const MODES: readonly Mode[] = ['look', 'listen'];

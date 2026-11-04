@@ -134,6 +134,6 @@ export async function downloadAll(db: WordDatabase, input: DictionaryManifest, o
   return progress;
 }
 
-export function searchDictionary(db: WordDatabase, version: string, query: string, limit = 30): Promise<Word[]> {
-  return db.searchDictionary(version, query, limit);
+export function searchDictionary(db: WordDatabase, version: string, query: string, limit = 30, signal?: AbortSignal): Promise<Word[]> {
+  return db.searchDictionary(version, query, limit, signal);
 }

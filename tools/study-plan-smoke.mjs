@@ -39,7 +39,7 @@ let now, today, completedFixture;
 function smallFixture() {
   const fresh = book.slice(-2).map(word => word.id); const due = book[0].id;
   let value = core.createInitialState(manifest.version, now);
-  value.settings = { ...value.settings, deck: 'ielts', groupSize: 10, autoSpeak: false, haptics: false, soundEffects: false };
+  value.settings = { ...value.settings, deck: 'ielts', groupSize: 10, autoSpeak: false, haptics: false, soundEffects: false, retentionEnabled: false };
   value.modes.look.groupNumber = 1;
   for (const word of book) if (!fresh.includes(word.id)) value.modes.look.progress[word.id] = { status: 'completed', wrongCount: 0, rightCount: 1, seenCount: 1, streak: 2, lastAnsweredAt: now - 86400000, lastGroup: 1 };
   value.modes.look.progress[due] = { status: 'completed', wrongCount: 1, rightCount: 2, seenCount: 3, streak: 2, lastAnsweredAt: now - 86400000, lastGroup: 1 };
@@ -51,7 +51,7 @@ function visualFixture() {
   const unseen = book.slice(-1200).map(word => word.id); const old = book.slice(0,-1200);
   const due = old.slice(-12).map(word => word.id);
   let value = core.createInitialState(manifest.version, now++);
-  value.settings = { ...value.settings, deck: 'ielts', groupSize: 20, autoSpeak: false, haptics: false, soundEffects: false };
+  value.settings = { ...value.settings, deck: 'ielts', groupSize: 20, autoSpeak: false, haptics: false, soundEffects: false, retentionEnabled: false };
   value.modes.look.groupNumber = 1;
   for (const [index, word] of old.entries()) value.modes.look.progress[word.id] = index < 2671 ? { status: 'completed', wrongCount: 0, rightCount: 1, seenCount: 1, streak: 2, lastAnsweredAt: now - 86400000, lastGroup: 1 } : { status: 'learning', wrongCount: 1, rightCount: 0, seenCount: 1, streak: 0, lastAnsweredAt: now - 86400000, lastGroup: 1 };
   value.dailyActivity[core.previousLocalDateKey(today)] = Object.fromEntries(due.map(id => [id,{look:{known:0,unknown:1},listen:{known:0,unknown:0}}]));
@@ -83,8 +83,13 @@ try {
     const app=await page.locator('.app-screen').boundingBox(), box=await dialog.boundingBox(); for(const key of ['x','y','width','height'])assert.ok(Math.abs(app[key]-box[key])<=1,key);
     assert.match(await page.locator('.plan-day-total').innerText(),/30/);
     await page.getByRole('listbox',{name:'截止日',exact:true}).focus(); await page.keyboard.press('ArrowDown'); assert.match(await page.locator('.plan-day-total').innerText(),/31/);
+    // Reproduce a queued programmatic scroll callback from another column before reset.
+    await page.getByRole('listbox',{name:'截止月份',exact:true}).dispatchEvent('scroll');
     await page.getByRole('button',{name:'重置',exact:true}).click(); assert.match(await page.locator('.plan-day-total').innerText(),/30/);
+    await page.waitForTimeout(250); assert.match(await page.locator('.plan-day-total').innerText(),/30/, 'Reset must remain stable after pending wheel scroll callbacks');
     await shot('02-editor-mobile'); await page.setViewportSize({width:1440,height:1000}); await shot('02-editor-desktop'); await page.setViewportSize({width:390,height:844});
+    await page.waitForTimeout(180); // The 100 ms wheel debounce must not restore the pre-reset date.
+    assert.match(await page.locator('.plan-day-total').innerText(),/30/);
     await page.getByRole('button',{name:'保存计划',exact:true}).click(); await dialog.waitFor({state:'detached'});
     const saved=await waitState(value=>!!value.studyPlans['ielts:look']); const summary=core.getStudyPlanSummary(saved,words,'ielts','look',today);
     assert.equal(summary.newTarget,1);assert.equal(summary.reviewTarget,1);assert.equal(summary.remainingToday,2);assert.equal(summary.remainingDays,30);assert.equal(summary.totalDays,30);assert.deepEqual(saved.modes,fixture.value.modes);

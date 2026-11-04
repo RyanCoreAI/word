@@ -208,7 +208,7 @@ try {
 
   await check('offline prefix search uses the downloaded full dictionary', async () => {
     await context.setOffline(true); await page.reload(); await page.locator('.continue').waitFor();
-    await page.getByRole('searchbox', { name: '搜索词典 · 输入英文单词', exact: true }).fill('bank');
+    await page.getByRole('searchbox', { name: '搜索词典 · 输入中文或英文', exact: true }).fill('bank');
     const results = page.locator('.home-search-results');
     await results.locator('.it .w').filter({ hasText: /^bank(?:\/|$)/ }).first().waitFor();
     const matches = await results.locator('.it .w').evaluateAll(nodes => nodes.map(node =>

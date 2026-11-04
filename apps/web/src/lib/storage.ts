@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MAX_BACKUP_BYTES, parseAppState, wordSchema, type AppState, type Word } from '../../../../packages/core/src';
+import { createDictionarySearch, isChineseQuery, normalizeDictionaryQuery } from './dictionary-search';
 
 export { MAX_BACKUP_BYTES };
 export const DATABASE_NAME = 'yanxai-word-v1';
@@ -53,6 +54,7 @@ function transactionResult<T>(transaction: IDBTransaction, begin: (set: (result:
 }
 
 export class WordDatabase {
+  private readonly chineseSearchCache = new Map<string, DictionaryEntry[]>();
   constructor(private readonly connection: IDBDatabase) {}
   close(): void { this.connection.close(); }
 
@@ -179,6 +181,7 @@ export class WordDatabase {
             set(undefined); return;
           }
           const store = tx.objectStore('dictionary');
+          this.chineseSearchCache.clear();
           for (const row of rows) store.add({ ...row, version: checked.version, normalized: row.word.toLowerCase() });
           chunks.add(checked); set(undefined);
         } catch (error) { fail(error); }
@@ -186,10 +189,12 @@ export class WordDatabase {
     });
   }
 
-  async searchDictionary(version: string, prefix: string, limit = 30): Promise<DictionaryEntry[]> {
-    const normalized = prefix.trim().toLowerCase();
+  async searchDictionary(version: string, prefix: string, limit = 30, signal?: AbortSignal): Promise<DictionaryEntry[]> {
+    const normalized = normalizeDictionaryQuery(prefix);
     if (!normalized || normalized.length > 300) return [];
     const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit) || 30));
+    if (signal?.aborted) throw new DOMException('搜索已取消。', 'AbortError');
+    if (isChineseQuery(normalized)) return this.searchChinese(version, normalized, boundedLimit, signal);
     const tx = this.connection.transaction('dictionary', 'readonly');
     return transactionResult(tx, (set, fail) => {
       const request = tx.objectStore('dictionary').index('prefix').getAll(IDBKeyRange.bound([version, normalized], [version, `${normalized}\uffff`]), boundedLimit);
@@ -200,6 +205,44 @@ export class WordDatabase {
         } catch (error) { fail(error); }
       };
     });
+  }
+
+  /** Read-only batches keep input responsive without a learning-database migration. */
+  private async searchChinese(version: string, query: string, limit: number, signal?: AbortSignal): Promise<DictionaryEntry[]> {
+    const checkedVersion = z.string().min(1).max(200).parse(version);
+    // Receipts change only after an atomic shard import, including imports by other tabs.
+    const receipts = await this.getChunkReceipts(checkedVersion);
+    if (signal?.aborted) throw new DOMException('搜索已取消。', 'AbortError');
+    const key = JSON.stringify([checkedVersion, query, limit, receipts.map(row => [row.id, row.sha256]).sort()]);
+    const cached = this.chineseSearchCache.get(key);
+    if (cached) { this.chineseSearchCache.delete(key); this.chineseSearchCache.set(key, cached); return [...cached]; }
+    const search = createDictionarySearch(query, limit);
+    let after: string | undefined;
+    for (;;) {
+      if (signal?.aborted) throw new DOMException('搜索已取消。', 'AbortError');
+      const tx = this.connection.transaction('dictionary', 'readonly');
+      const abort = () => { try { tx.abort(); } catch { /* A completed readonly batch needs no rollback. */ } };
+      signal?.addEventListener('abort', abort, { once: true });
+      let rows: z.infer<typeof storedEntrySchema>[];
+      try {
+        rows = await transactionResult<z.infer<typeof storedEntrySchema>[]>(tx, (set, fail) => {
+          const range = IDBKeyRange.bound(after === undefined ? [checkedVersion] : [checkedVersion, after], [checkedVersion, []], after !== undefined, true);
+          const request = tx.objectStore('dictionary').getAll(range, 1500);
+          request.onsuccess = () => { try { set(z.array(storedEntrySchema).parse(request.result as unknown)); } catch (error) { fail(error); } };
+        });
+      } catch (error) {
+        if (signal?.aborted) throw new DOMException('搜索已取消。', 'AbortError');
+        throw error;
+      } finally { signal?.removeEventListener('abort', abort); }
+      if (signal?.aborted) throw new DOMException('搜索已取消。', 'AbortError');
+      search.add(rows);
+      if (rows.length < 1500) break;
+      after = rows[rows.length - 1]!.id;
+    }
+    const results = search.results().map(({ id, word, translation, phonetic, tags, rank, basic }) => ({ id, word, translation, phonetic, tags, rank, basic }));
+    this.chineseSearchCache.set(key, results);
+    if (this.chineseSearchCache.size > 8) this.chineseSearchCache.delete(this.chineseSearchCache.keys().next().value!);
+    return [...results];
   }
 
   /** Exact, deduplicated batch lookup; never substitute a prefix match for an article token. */
