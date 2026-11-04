@@ -36,4 +36,12 @@
 
 已通过设置界面实际下载全部 97 分片、770,611 词条、115,448,271 字节并完成 8 项全词典检查。该轮“银行／有益”学习包约 0.3 秒、完整扫描约 6 秒，缓存重复查询约 0.3 秒，扫描中输入未阻塞；检查取消、离线与状态保持。性能证据：`D:\Word-article-release\chinese-search\full-corpus-verified\report.json`；该轮在进一步微调主释义排序之前执行，最终排序另由 12 项检查核验。两轮均使用任务专属 Chrome 配置，不能代表所有安卓真机速度。
 
-发布完成后补充代码、构建与公网验证记录。
+## 已验证发布
+
+- 正式入口：https://word.yanxai.com/ 。应用代码：`d4d7f69cd5d7fca5fe6fd37acd1ff62a5a4285a5`；应用外壳：`e41460d0f514852a`；Word 独立 Worker 发布版本：`96ba951c-8d41-46c9-a5ef-5abac51bae55`。
+- 公网中文查词 12 项、间隔巩固 11 项、安全 8 项全部通过，均明确指向正式 HTTPS 入口；没有页面错误、外部请求或查询／学习数据上传。
+- 线上 80 个文件与本地构建逐字节一致，覆盖新代码、原有词典／阅读／ASR、20 张图片、许可证与安卓安装包。证据：`D:\Word-article-release\chinese-search\release-public\byte-verification.json`。
+- 298 项应用测试、10 项发布安全测试、lint、typecheck、build 通过；计划 8 项、旧学习 11 项、文章 17 项、复述 9 项回归通过。修复回归中发现的日期滚轮旧闭包覆盖重置问题，额外断言滚动稳定后仍为 30 天且真实保存一致。
+- 公网证据：`D:\Word-article-release\chinese-search\public\report.json`、`D:\Word-article-release\retention\public\report.json`、`D:\Word-article-release\chinese-search\security-public\report.json`。
+- 代码已推送原分支。[GitHub 自动检查](https://github.com/RyanCoreAI/word/actions/runs/41861924368)记录时仍在排队，不能称为 CI 成功；本地及公网已执行的检查如上。工作目录仍为 `D:\Yanxai-Word`，未修改其它项目。
+- 安卓采用 Chrome 模拟检查，未声称真机安装、语音听感或系统文件保存已通过。现有安卓壳随官网更新，无需因本次网页功能重新生成 APK。
